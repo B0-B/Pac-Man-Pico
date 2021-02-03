@@ -6,7 +6,7 @@
     <title>Ms. Pacman</title>
 </head>
 <body style="background-color: #383838;">
-    <div style="height: 500px; width: 800px">
+    <div style="height: 600px; width: 900px">
         <script>
             (async () => {
 
@@ -37,13 +37,13 @@
                 parent.removeChild(document.currentScript);
 
                 // ---- parameters ----
-                const height = 250;
-                const width = 400;
+                const height = 300;
+                const width = 450;
                 const cellWidth = (parseFloat(parent.style.width)/width);
                 const cellHeight = (parseFloat(parent.style.height)/height);
                 const glow = 2; // radius in px
                 const margin = 7;
-                const wallColor = '#0d69bf';
+                const wallColor = 'rgb(13, 42, 172)';
                 const directions = ["up","down","left","right"];
                 console.log('test',cellWidth, cellHeight)
 
@@ -77,13 +77,13 @@
                 // ---- interactions with the grid ----
                 function get (x,y) {return document.getElementById(`${x}-${y}`)}
                 function setCol (x, y, col) {if(x>=0 && x<width && y>=0 && y<height){e=get(x,y);e.style.backgroundColor=col; e.style.boxShadow=`0 0 ${glow}px ${Math.round(glow/10)}px `+col;}}
-                async function blink (x, y, col=null, length=0.2) {
+                async function blink (x, y, col=null, duration=0.2) {
                     const original = get(x,y).style.backgroundColor;
                     if (col==null){col="black"}
                     for (let i = 0; i < 6; i++) {
                         setCol(x,y,col);
-                        await delay(0.2/2);
-                        setCol(x,y,original); await delay(0.2/2);
+                        await delay(duration);
+                        setCol(x,y,original); await delay(duration);
                     }
                 }
                 async function render (object, state, x, y) {object[state].forEach(c => {setCol(x+c[0], y+c[1], c[2])})}
@@ -107,41 +107,124 @@
                 }
                 async function thereIsSpace (x,y,direction) {
                     const newCoord = moveAnchor([x,y],direction);
-                    if (width-newCoord[0]>margin || newCoord[0]+1<margin || height-newCoord[1]>margin || newCoord[1]+1<margin) {
+                    
+                    if (width-newCoord[0]<margin || newCoord[0]+1<margin || height-newCoord[1]<margin || newCoord[1]+1<margin) {
                         return false;
                     } else {
                         return true;
                     }
                 }
-                async function pathGen () {
-                    var path = [[width/2,height/2,b]];
-                    var d = await newRandomDirection();
-                    console.log('test0', d, path)
-                    for (let i = 0; i < 10; i++) {
-                        const coord = path.slice(-1)[0];
-                        console.log('first coord', coord)
-                        for (let j = 0; j < 60 + Math.round(Math.random()*70); j++) {
-                            if (await thereIsSpace(coord[0], coord[1], d)){
-                                path.push(await moveAnchor(coord, d));
-                            } else {break}
+                async function rectangle(w, h, col) {
+                    const obj = [];
+                    for (let x = 0; x < w; x++) {
+                        for (let y = 0; y < h; y++) {
+                            obj.push([x,y,col])
                         }
-                        while (true) {
-                            d = await newRandomDirection(d);
-                            if (await thereIsSpace(coord[0], coord[1], d)) {break}
-                        }
-                        const newCoord = await moveAnchor(coord, d);
-                        path.push(newCoord);
-                        console.log('newCoord', newCoord)
                     }
-                    console.log('path', path)
-                    return path;
+                    return obj
+                }
+                async function pathGen (random=false) {
+                    // create a crude grid with 50px per cell
+                    const w = width/30;
+                    const h = height/20;
+                    var newPath = []
+                    for (let i = 0; i < 20; i++) {
+                        newPath.push([])
+                        for (let j = 0; j < 30; j++) {
+
+                            // coordinate (i,j) = 10widths*16heights
+                            const cell = [];
+                            for (let x = 0; x < w; x++) {
+                                for (let y = 0; y < h; y++) {
+                                    var coordinate = [j*w+x, i*h+y, "black"];
+                                    cell.push(coordinate);
+                                }
+                            }
+
+                            // add the cell to path
+                            newPath[i].push(cell);
+                        }
+                    }
+
+                    // do the outline cutting
+                    const l = newPath.length;
+                    const l2 = newPath[0].length;
+                    for (let i = 0; i < l; i++) {
+                        if (i==0 || i==19) {
+                            for (let j = 0; j < l2; j++) {
+                                newPath[i][j] = []
+                            }
+                        } else {
+                            newPath[i][0] = [];
+                            newPath[i][l2-1] = [];
+                        }
+                    }
+
+                    // check if the path should be generated randomly
+                    if (!random) {
+                        // upper left rectangle
+                        newPath[2][2] = [];
+                        newPath[2][3] = [];
+                        newPath[2][4] = [];
+                        newPath[2][5] = [];
+                        newPath[3][2] = [];
+                        newPath[3][3] = [];
+                        newPath[3][4] = [];
+                        newPath[3][5] = [];
+
+                        // upper middle rectangle
+                        newPath[2][7] = [];
+                        newPath[2][8] = [];
+                        newPath[2][9] = [];
+                        newPath[2][10] = [];
+                        newPath[2][11] = [];
+                        newPath[2][12] = [];
+                        newPath[3][7] = [];
+                        newPath[3][8] = [];
+                        newPath[3][9] = [];
+                        newPath[3][10] = [];
+                        newPath[3][11] = [];
+                        newPath[3][12] = [];
+
+                        // upper right rectangle
+                        newPath[2][14] = [];
+                        newPath[2][15] = [];
+                        newPath[2][16] = [];
+                        newPath[2][17] = [];
+                        newPath[2][18] = [];
+                        newPath[2][19] = [];
+                        newPath[2][20] = [];
+                        newPath[2][21] = [];
+                    } else {
+                        //
+                    }
+                    console.log(newPath) 
+                    return newPath
                 }
                 async function renderPath (path) {
-                    path.forEach(p=>{
-                        setCol(p[0],p[1],p[2]);
-                    })
+                    for (let i = 0; i < path.length; i++) {
+                        for (let j = 0; j < path[0].length; j++) {
+                            const cell = path[i][j];
+                            cell.forEach(coordinate => {
+                                setCol(coordinate[0], coordinate[1], coordinate[2])
+                            })
+                        }
+                    }
                 }
-                
+                async function propagatePacman (object, position, direction) {
+                    const keys = Object.keys(object)
+                    var key_ind = 0;
+                    while (thereIsSpace(position[0], position[1], direction)) {
+
+                        // delete at old position
+                        
+
+                        // render at new position
+                        key_ind = (key_ind + 1) % 3;
+                        position = moveAnchor(position);
+                        render(object, keys[key_ind], position[0], position[1]);
+                    }
+                }
                 /* ---- objects ----
                 are just arrays with relative coord. [x,y,color]*/ 
                 var lastTwoStates = ['open', 'middle'];
