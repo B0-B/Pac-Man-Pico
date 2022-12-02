@@ -8,13 +8,15 @@
 
         // graphics input
         const   height = 300,
-                width = 500,
+                width = 600,
+                delay = 0,
                 resolution = 20,
                 wallColor = '#060654';
 
         // general
         function u(){return Math.random()}
         function fl(x){return Math.floor(x)}
+        function sl(t){return new Promise(r=>setTimeout(r,t))}
 
         // format body
         const body = document.body;
@@ -51,10 +53,14 @@
         }
 
         // create maze
-            // helper methods
-            function block (col, row, res, grid_obj, ctx, value=1) {
+            // -- helper methods --
+            async function block (col, row, res, grid_obj, ctx, value=1) {
                 ctx.fillRect(col*res, row*res, res, res);
                 grid_obj[row][col].v = value
+                if (delay) {
+                    await sl(delay)
+                }
+                
             }
             function free (col, row, grid) {
                 if (grid[row][col].v) {return false}
@@ -73,7 +79,7 @@
                 }
                 return true
             }
-        async function maze (grid_obj, ctx, color) {
+        async function maze (grid_obj, ctx, color, snakes=1000, length=100, gaps=2) {
             
             const   g = grid_obj;
             const   res = g[0][1].x - g[0][0].x,
@@ -84,12 +90,12 @@
             
             // create outter frame
             for (let i=0; i<rows; i++) {
-                block(0, i, res, g, ctx);
-                block(col-1, i, res, g, ctx)
+                await block(0, i, res, g, ctx);
+                await block(col-1, i, res, g, ctx)
             }
             for (let i=0; i<col; i++) {
-                block(i, 0, res, g, ctx);
-                block(i, row-1, res, g, ctx)
+                await block(i, 0, res, g, ctx);
+                await block(i, row-1, res, g, ctx)
             }
 
             // place the cage
@@ -101,34 +107,31 @@
                 } else {
                     dim[ind] = 3
                 }
-            } // surely divisible by two now
+            }
             start = [(col-dim[0])/2, (row-dim[1])/2];
-            block(start[0], start[1], res, g, ctx)
+            await block(start[0], start[1], res, g, ctx)
             for (let x = 0; x < dim[0]+1; x++) {
-                block(start[0]+x, start[1], res, g, ctx);
-                block(start[0]+x, start[1]-dim[1], res, g, ctx);
+                await block(start[0]+x, start[1], res, g, ctx);
+                await block(start[0]+x, start[1]+dim[1], res, g, ctx);
                 
+            } for (let y = 0; y < dim[1]; y++) {
+                await block(start[0], start[1]+y, res, g, ctx);
+                await block(start[0]+dim[0], start[1]+y, res, g, ctx);
             }
-            for (let y = 0; y < dim[1]; y++) {
-                block(start[0], start[1]-y, res, g, ctx);
-                block(start[0]+dim[0], start[1]-y, res, g, ctx);
-            }
 
-            // fill internal using snake method
-            snakes = 100
-            length = 100
-
-            p = {x:2,y:2}
-
+            // fill internal space with snake method
+            let p = {x:2,y:2},
+                br = 0;
             for (let i = 0; i < snakes; i++) {
 
                 // find new position, if search takes to long it ran out of space, then return
-                const lim = row*col*10;
+                const lim = row*col*100;
                 for (let z = 0; z < lim; z++) {
                     [x,y] = [fl(u()*col), fl(u()*row)]
                     if (space(x,y,x,y,g)) {p.x=x;p.y=y;break}
-                    if (z == lim-1){return}
+                    if (z == lim-1){br=1;break}
                 }
+                if(br){break}
 
                 // fill starting point
                 block(p.x, p.y, res, g, ctx)
@@ -149,23 +152,35 @@
                         count = 0
                     }
 
+                    // adjust position
                     if (v == 'l') {p.x--}
                     else if (v == 'r') {p.x++}
                     else if (v == 'u') {p.y++}
                     else if (v == 'd') {p.y--}
                     else {break}
 
-                    block(p.x, p.y, res, g, ctx)
+                    await block(p.x, p.y, res, g, ctx)
                     count++
                 }
             }
 
-            
+            // cut out some gaps
+            success = 0
+            ctx.fillStyle = "#000";
+            while (success < gaps) {
+                [x,y] = [2+fl(u()*(col-4)),2+fl(u()*(row-4))];
+                console.log('hit')
+                outside_cage = (x < start[0] || x > start[0]+dim[0]) || (y < start[1] || y > start[1]+dim[1])
+                if (outside_cage && !free(x,y,g) && ((!free(x+1,y,g) && !free(x-1,y,g) && free(x,y+1,g) && free(x,y-1,g)) || (free(x+1,y,g) && free(x-1,y,g) && !free(x,y+1,g) && !free(x,y-1,g)))) {
+                    await block(x,y,res,g,ctx,0)
+                    success++
+                }
+            }
         }
 
         // initialize instance
         (async() => {
-            const _grid = await grid(columns, rows, resolution);
+            const _grid = await grid(columns, rows, r);
             // ctx.fillStyle = wallColor
             // block(2,5,resolution,_grid,ctx)
             maze(_grid, ctx, wallColor)
