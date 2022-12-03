@@ -179,12 +179,11 @@
 
                 // cut out some gaps
                 success = 0
-                ctx.fillStyle = "#000";
                 while (success < gaps) {
                     [x,y] = [2+fl(u()*(col-4)),2+fl(u()*(row-4))];
                     outside_cage = (x < start[0] || x > start[0]+dim[0]) || (y < start[1] || y > start[1]+dim[1])
                     if (outside_cage && !free(x,y,g) && ((!free(x+1,y,g) && !free(x-1,y,g) && free(x,y+1,g) && free(x,y-1,g)) || (free(x+1,y,g) && free(x-1,y,g) && !free(x,y+1,g) && !free(x,y-1,g)))) {
-                        await block(x,y,res,g,ctx,0, color)
+                        await block(x, y, res, g, ctx, color, 0);
                         success++
                     }
                 }
@@ -205,28 +204,39 @@
             body.prepend(canvas_active)
 
             /* pacman data */
-            let pac_v = 'r',
+            let pac_v = '',
                 pac_p = {x:0,y:0},
                 pac_s = 0,
                 pac_mouth_states = [.2,.5,.8,.9,.8,.5], 
-                pac_direction_phase = {'r': 0, 'u':Math.PI/2};
-                increment = 2;
-            function draw_pacman (coord, mouth_state, direction_phase, resolution, ctx) {
-                ctx.beginPath();
+                pac_direction_phase = {'r': 0, 'u':Math.PI/2, 'l': Math.PI, 'd': 1.5*Math.PI};
+                increment = 1,
+                tol = .2 * r;
+            async function draw_pacman (coord, mouth_state, direction_phase, resolution, ctx) {
+                
                 rad = fl(resolution/2);
-                ctx.arc(coord.x+rad, coord.y+rad, rad, mouth_state, 2*Math.PI-mouth_state);
+                const c = [coord.x+rad, coord.y+rad]
+                ctx.beginPath();
+                ctx.arc(c[0], c[1], rad, mouth_state, 2*Math.PI-mouth_state);
                 ctx.fillStyle = ctx.strokeStyle = '#d9e312';
-                ctx.lineTo(coord.x+rad,coord.y+rad);
-                ctx.lineTo(coord.x+rad+rad*Math.cos(mouth_state),coord.y+rad+rad*Math.sin(mouth_state));
+                ctx.lineTo(c[0],c[1]);
+                ctx.lineTo(c[0]+rad*Math.cos(mouth_state),c[1]+rad*Math.sin(mouth_state));
                 ctx.stroke();
                 ctx.closePath();
                 ctx.fill();
+                
+                ctx.save()
+
+                
                 ctx.rotate(direction_phase)
+                ctx.restore();
+                // ctx.stroke();
+                // ctx.closePath();
+                // ctx.fill();
             }
             function set_pac (coord) {
                 pac_p = coord
             }
-            function move_pac (direction) {
+            async function move_pac (direction) {
                 if (direction== 'r') {
                     pac_p.x += increment
                 } else if (direction == 'l') {
@@ -238,29 +248,28 @@
                 }
                 pac_s = (pac_s+1)%pac_mouth_states.length;
             }
-            function can_move_in_dir (direction) {
+            async function can_move_in_dir (direction) {
                 const [x,y] = [pac_p.x+r/2,pac_p.y+r/2]; // center
-                const tol = 0.4 * r;
-                if (    (direction == 'r' && coordIsFree(x + tol - 1 + increment, y)) || 
-                        (direction == 'l' && coordIsFree(x - tol + 1 - increment, y)) ||
-                        (direction == 'u' && coordIsFree(x, y - tol + 1 - increment)) ||
-                        (direction == 'd' && coordIsFree(x, y + tol - 1 + increment)) ) {
+                if (    (direction == 'r' && coordIsFree(x + tol - 1 + increment, y+tol) && coordIsFree(x + tol - 1 + increment, y-tol)) || 
+                        (direction == 'l' && coordIsFree(x - tol + 1 - increment, y+tol) && coordIsFree(x - tol + 1 - increment, y-tol)) ||
+                        (direction == 'u' && coordIsFree(x + tol, y - tol + 1 - increment) && coordIsFree(x - tol, y - tol + 1 - increment)) ||
+                        (direction == 'd' && coordIsFree(x + tol, y + tol - 1 + increment) && coordIsFree(x - tol, y + tol - 1 + increment)) ) {
                             return true
                         }
                 return false
             }
             async function keep_moving_pac (direction) {
-                if (can_move_in_dir(direction)) {
+                if (direction != pac_v && can_move_in_dir(direction)) {
                     pac_v = direction;
                 } else {
                     return
                 }
                 while (direction == pac_v) {
-                    if (can_move_in_dir(direction)) {
+                    if (await can_move_in_dir(direction)) {
                         move_pac(direction);
-                        await clear(ctxa);
+                        clear(ctxa);
                         draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[direction], r, ctxa);
-                        await sl(20);
+                        await sl(30);
                     } else {
                         return
                     } 
@@ -277,18 +286,15 @@
 
             // bind keys to pacman
             document.addEventListener('keydown', (event) => {
-                var name = event.key;
-                var code = event.code;
+                var name = event.key,
+                    code = event.code,
+                    d;
                 console.log(name, code)
-                if (name == 'w' || name == 'ArrowUp') {
-                    keep_moving_pac('u')
-                } else if (name == 'a' || name == 'ArrowLeft') {
-                    keep_moving_pac('l')
-                } else if (name == 's' || name == 'ArrowDown') {
-                    keep_moving_pac('d')
-                } else if (name == 'd' || name == 'ArrowRight') {
-                    keep_moving_pac('r')
-                }
+                if (name == 'w' || name == 'ArrowUp') {d = 'u'} 
+                else if (name == 'a' || name == 'ArrowLeft') {d = 'l'} 
+                else if (name == 's' || name == 'ArrowDown') {d = 'd'} 
+                else if (name == 'd' || name == 'ArrowRight') {d = 'r'}
+                keep_moving_pac(d)
             }, false);
 
         })();
