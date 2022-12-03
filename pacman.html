@@ -209,7 +209,7 @@
                 pac_s = 0,
                 pac_mouth_states = [.2,.5,.8,.9,.8,.5], 
                 pac_direction_phase = {'r': 0, 'u':Math.PI/2, 'l': Math.PI, 'd': 1.5*Math.PI};
-                increment = 1,
+                increment = 2,
                 tol = .2 * r;
             async function draw_pacman (coord, mouth_state, direction_phase, resolution, ctx) {
                 
@@ -250,10 +250,10 @@
             }
             async function can_move_in_dir (direction) {
                 const [x,y] = [pac_p.x+r/2,pac_p.y+r/2]; // center
-                if (    (direction == 'r' && coordIsFree(x + tol - 1 + increment, y+tol) && coordIsFree(x + tol - 1 + increment, y-tol)) || 
-                        (direction == 'l' && coordIsFree(x - tol + 1 - increment, y+tol) && coordIsFree(x - tol + 1 - increment, y-tol)) ||
-                        (direction == 'u' && coordIsFree(x + tol, y - tol + 1 - increment) && coordIsFree(x - tol, y - tol + 1 - increment)) ||
-                        (direction == 'd' && coordIsFree(x + tol, y + tol - 1 + increment) && coordIsFree(x - tol, y + tol - 1 + increment)) ) {
+                if (    (direction == 'r' && coordIsFree(x + tol + increment, y+tol) && coordIsFree(x + tol + increment, y-tol)) || 
+                        (direction == 'l' && coordIsFree(x - tol - increment, y+tol) && coordIsFree(x - tol - increment, y-tol)) ||
+                        (direction == 'u' && coordIsFree(x + tol, y - tol - increment) && coordIsFree(x - tol, y - tol - increment)) ||
+                        (direction == 'd' && coordIsFree(x + tol, y + tol + increment) && coordIsFree(x - tol, y + tol + increment)) ) {
                             return true
                         }
                 return false
