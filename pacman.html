@@ -183,7 +183,7 @@
                     [x,y] = [2+fl(u()*(col-4)),2+fl(u()*(row-4))];
                     outside_cage = (x < start[0] || x > start[0]+dim[0]) || (y < start[1] || y > start[1]+dim[1])
                     if (outside_cage && !free(x,y,g) && ((!free(x+1,y,g) && !free(x-1,y,g) && free(x,y+1,g) && free(x,y-1,g)) || (free(x+1,y,g) && free(x-1,y,g) && !free(x,y+1,g) && !free(x,y-1,g)))) {
-                        await block(x, y, res, g, ctx, color, 0);
+                        await block(x, y, res, g, ctx, '#000', 0);
                         success++
                     }
                 }
@@ -209,8 +209,8 @@
                 pac_s = 0,
                 pac_mouth_states = [.2,.5,.8,.9,.8,.5], 
                 pac_direction_phase = {'r': 0, 'u':Math.PI/2, 'l': Math.PI, 'd': 1.5*Math.PI};
-                increment = 2,
-                tol = .2 * r;
+                increment = 4,
+                tol = .45 * r;
             async function draw_pacman (coord, mouth_state, direction_phase, resolution, ctx) {
                 
                 rad = fl(resolution/2);
@@ -276,13 +276,8 @@
                 }
             }
 
+            // init pacman at upper left corner
             set_pac(_grid[1][1]);
-            // keep_moving_pac('r');
-            // await sl(3000)
-            // await keep_moving_pac('d');
-            // await keep_moving_pac('u');
-            // await keep_moving_pac('d');
-            // await keep_moving_pac('l');
 
             // bind keys to pacman
             document.addEventListener('keydown', (event) => {
