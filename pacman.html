@@ -65,10 +65,13 @@
                 }
             }
             function blockFromCoord (coord, grid) {
-                return _grid[fl(coord.x/r)][fl(coord.y/r)]
+                return _grid[fl(coord.y/r)][fl(coord.x/r)]
             }
-            function clear (ctx) {
+            async function clear (ctx) {
                 ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            }
+            function coordIsFree (x,y) {
+                return !blockFromCoord ({x:x,y:y}).v
             }
             function free (col, row, grid) {
                 if (grid[row][col].v) {return false}
@@ -179,7 +182,6 @@
                 ctx.fillStyle = "#000";
                 while (success < gaps) {
                     [x,y] = [2+fl(u()*(col-4)),2+fl(u()*(row-4))];
-                    console.log('hit')
                     outside_cage = (x < start[0] || x > start[0]+dim[0]) || (y < start[1] || y > start[1]+dim[1])
                     if (outside_cage && !free(x,y,g) && ((!free(x+1,y,g) && !free(x-1,y,g) && free(x,y+1,g) && free(x,y-1,g)) || (free(x+1,y,g) && free(x-1,y,g) && !free(x,y+1,g) && !free(x,y-1,g)))) {
                         await block(x,y,res,g,ctx,0, color)
@@ -224,33 +226,70 @@
             function set_pac (coord) {
                 pac_p = coord
             }
-            function move_pac () {
-                if (pac_v == 'r') {
+            function move_pac (direction) {
+                if (direction== 'r') {
                     pac_p.x += increment
-                } else if (pac_v == 'l') {
+                } else if (direction == 'l') {
                     pac_p.x -= increment
-                } else if (pac_v == 'u') {
-                    pac_p.y += increment
-                } else if (pac_v == 'd') {
+                } else if (direction == 'u') {
                     pac_p.y -= increment
+                } else if (direction == 'd') {
+                    pac_p.y += increment
                 }
                 pac_s = (pac_s+1)%pac_mouth_states.length;
             }
+            function can_move_in_dir (direction) {
+                const [x,y] = [pac_p.x+r/2,pac_p.y+r/2]; // center
+                const tol = 0.4 * r;
+                if (    (direction == 'r' && coordIsFree(x + tol - 1 + increment, y)) || 
+                        (direction == 'l' && coordIsFree(x - tol + 1 - increment, y)) ||
+                        (direction == 'u' && coordIsFree(x, y - tol + 1 - increment)) ||
+                        (direction == 'd' && coordIsFree(x, y + tol - 1 + increment)) ) {
+                            return true
+                        }
+                return false
+            }
             async function keep_moving_pac (direction) {
-                while (true) {
-                    if (direction == 'r' && pac_p.x + r - 1 + increment) {
-                        move_pac();
-                        draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa);
+                if (can_move_in_dir(direction)) {
+                    pac_v = direction;
+                } else {
+                    return
+                }
+                while (direction == pac_v) {
+                    if (can_move_in_dir(direction)) {
+                        move_pac(direction);
+                        await clear(ctxa);
+                        draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[direction], r, ctxa);
                         await sl(20);
-                        clear(ctxa)
                     } else {
-                        break
-                    }
+                        return
+                    } 
                 }
             }
 
             set_pac(_grid[1][1]);
-            keep_moving_pac('r');
+            // keep_moving_pac('r');
+            // await sl(3000)
+            // await keep_moving_pac('d');
+            // await keep_moving_pac('u');
+            // await keep_moving_pac('d');
+            // await keep_moving_pac('l');
+
+            // bind keys to pacman
+            document.addEventListener('keydown', (event) => {
+                var name = event.key;
+                var code = event.code;
+                console.log(name, code)
+                if (name == 'w' || name == 'ArrowUp') {
+                    keep_moving_pac('u')
+                } else if (name == 'a' || name == 'ArrowLeft') {
+                    keep_moving_pac('l')
+                } else if (name == 's' || name == 'ArrowDown') {
+                    keep_moving_pac('d')
+                } else if (name == 'd' || name == 'ArrowRight') {
+                    keep_moving_pac('r')
+                }
+            }, false);
 
         })();
         
