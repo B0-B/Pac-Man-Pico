@@ -283,7 +283,7 @@
         else if (name == 'a' || name == 'ArrowLeft') {d = 'l'} 
         else if (name == 's' || name == 'ArrowDown') {d = 'd'} 
         else if (name == 'd' || name == 'ArrowRight') {d = 'r'}
-        keep_moving_pac(d)
+        //keep_moving_pac(d)
     }, false);
 
 

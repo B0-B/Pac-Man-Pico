@@ -66,10 +66,10 @@
                     await sl(delay)
                 }
             }
-            function blockFromCoord (coord, grid) {
+            function blockFromCoord (coord) {
+                console.log(fl(coord.y/r),fl(coord.x/r))
                 return _grid[fl(coord.y/r)][fl(coord.x/r)]
             }
-            
             function coordIsFree (x,y) {
                 return !blockFromCoord ({x:x,y:y}).v
             }
@@ -90,7 +90,6 @@
                 }
                 return true
             }
-            
             // -- helper methods end --
             async function maze (grid_obj, ctx, color, snakes=100, length=100, gaps=2) {
                 
@@ -245,24 +244,24 @@
                 }
                 pac_s = (pac_s+1)%pac_mouth_states.length;
             }
-            async function can_move_in_dir (direction, x, y) {
+            async function can_move_in_dir (direction, x, y, inc) {
                 [x,y] = [x+r/2,y+r/2]; // center
-                if (    (direction == 'r' && coordIsFree(x + tol + increment, y+tol) && coordIsFree(x + tol + increment, y-tol)) || 
-                        (direction == 'l' && coordIsFree(x - tol - increment, y+tol) && coordIsFree(x - tol - increment, y-tol)) ||
-                        (direction == 'u' && coordIsFree(x + tol, y - tol - increment) && coordIsFree(x - tol, y - tol - increment)) ||
-                        (direction == 'd' && coordIsFree(x + tol, y + tol + increment) && coordIsFree(x - tol, y + tol + increment)) ) {
+                if (    (direction == 'r' && coordIsFree(x + tol + inc, y+tol) && coordIsFree(x + tol + inc, y-tol)) || 
+                        (direction == 'l' && coordIsFree(x - tol - inc, y+tol) && coordIsFree(x - tol - inc, y-tol)) ||
+                        (direction == 'u' && coordIsFree(x + tol, y - tol - inc) && coordIsFree(x - tol, y - tol - inc)) ||
+                        (direction == 'd' && coordIsFree(x + tol, y + tol + inc) && coordIsFree(x - tol, y + tol + inc)) ) {
                             return true
                         }
                 return false
             }
             async function keep_moving_pac (direction) {
-                if (direction != pac_v && can_move_in_dir(direction, pac_p.x, pac_p.y)) {
+                if (direction != pac_v && can_move_in_dir(direction, pac_p.x, pac_p.y, increment)) {
                     pac_v = direction;
                 } else {
                     return
                 }
                 while (direction == pac_v) {
-                    if (await can_move_in_dir(direction, pac_p.x, pac_p.y)) {
+                    if (await can_move_in_dir(direction, pac_p.x, pac_p.y, increment)) {
                         move_pac(direction);
                         //clear();
                         await clear_pac();
@@ -288,9 +287,9 @@
                 else if (name == 'a' || name == 'ArrowLeft') {d = 'l'} 
                 else if (name == 's' || name == 'ArrowDown') {d = 'd'} 
                 else if (name == 'd' || name == 'ArrowRight') {d = 'r'}
-                keep_moving_pac(d)
+                //keep_moving_pac(d)
+                pac_v = d
             }, false);
-
 
 
             /* Load ghosts */
@@ -299,12 +298,13 @@
             const d_x = fl(_grid[0].length/2), d_y = fl(_grid.length/2);
             const spawn = _grid[d_y][d_x];
             var ghosts_active = true;
-            ghosts = [
+            const ghosts = [
                 {x:spawn.x+r,y:spawn.y+r,c:'red',v:'',s:0},
                 {x:spawn.x+r,y:spawn.y+r,c:'cyan',v:'',s:0},
                 {x:spawn.x+r,y:spawn.y+r,c:'orange',v:'',s:0},
                 {x:spawn.x+r,y:spawn.y+r,c:'pink',v:'',s:0},
             ];
+            
             async function draw_ghost (coord, direction, color, resolution, ctx) {
                 const   rad = fl(resolution/2);
                 const c = [coord.x+rad, coord.y+rad];
@@ -348,26 +348,26 @@
             async function ghost_move (ghost) {
                 const g = ghost;
                 while (ghosts_active) {
-                    possible_directions = [];
+                    pd = []; // possible directions
                     for (d of ['l','r','u','d']) {
                         if (can_move_in_dir(d), g.x, g.y) {
-                            possible_directions.push(d)
+                            pd.push(d)
                         }
                     }
-                    if (possible_directions.length > 1) {
-                        if ((possible_directions.includes('l') && g.v == 'r') || 
-                        (possible_directions.includes('r') && g.v == 'l') || 
-                        (possible_directions.includes('u') && g.v == 'd') || 
-                        (possible_directions.includes('d') && g.v == 'u')) {
-                            possible_directions.splice(possible_directions.indexOf(g.v),1)
+                    if (pd.length > 1) {
+                        if ((pd.includes('l') && g.v == 'r') || 
+                        (pd.includes('r') && g.v == 'l') || 
+                        (pd.includes('u') && g.v == 'd') || 
+                        (pd.includes('d') && g.v == 'u')) {
+                            pd.splice(pd.indexOf(g.v),1)
                         }
                         // smaple new direction
                         if (!(u()<1/(1+.1*s)) || g.v=='') {
-                            g.v = possible_directions[fl(u()*possible_directions.length)];
+                            g.v = pd[fl(u()*pd.length)];
                             g.s=0;
                         }
                     } else {
-                        g.v = possible_directions[0]
+                        g.v = pd[0]
                     }
 
                     
@@ -389,11 +389,87 @@
                 }
 
             }
+            
+            // render all objects on active canvas 
             for (g of ghosts) {
-                draw_ghost(g, g.v, g.c, r, ctxa)
-                ghost_move(g);
+                draw_ghost(g, g.v, g.c, r, ctxa);
+                //ghost_move(g);
             }
+            draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa);
+            
+            // init game
+            async function start_game () {
 
+                
+                while (true) {
+
+                    // update ghosts
+                    // for (const g of ghosts) {
+
+                    //     pd = []; // possible directions
+                    //     for (d of ['l','r','u','d']) {
+                    //         if (can_move_in_dir(d, g.x, g.y, ghost_increment)) {
+                    //             pd.push(d)
+                    //         }
+                    //     }
+                    //     // test
+                    //     console.log('pd',pd)
+                    //     await sl(1000); 
+                    //     if (pd.length > 1) {
+                    //         if ((pd.includes('l') && g.v == 'r') || 
+                    //         (pd.includes('r') && g.v == 'l') || 
+                    //         (pd.includes('u') && g.v == 'd') || 
+                    //         (pd.includes('d') && g.v == 'u')) {
+                    //             pd.splice(pd.indexOf(g.v),1)
+                    //         }
+                    //         // smaple new direction
+                    //         if (!(u()<1/(1+.01*s)) || g.v=='') {
+                    //             g.v = pd[fl(u()*pd.length)];
+                    //             g.s=0;
+                    //         }
+                    //     } else {
+                    //         g.v = pd[0]
+                    //     }
+                    //     if (g.v== 'r') {
+                    //         g.x += ghost_increment
+                    //     } else if (g.v == 'l') {
+                    //         g.x -= ghost_increment
+                    //     } else if (g.v == 'u') {
+                    //         g.y -= ghost_increment
+                    //     } else if (g.v == 'd') {
+                    //         g.y += ghost_increment
+                    //     }
+                        
+                    //     //ctxa.clearRect(g.x-.2*r,g.y-.2*r,1.4*r,1.4*r);
+                    //     draw_ghost(g, g.v, g.c, r, ctxa);
+                        
+                    //     g.s++
+                    // }
+
+
+
+                    // update pacman
+                    if (pac_v != '' && await can_move_in_dir(pac_v, pac_p.x, pac_p.y, increment)) {
+                        console.log('move', pac_v)
+                        move_pac(pac_v);
+                        //clear();
+                        //await clear_pac();
+                        //ctxa.clearRect(pac_p.x,pac_p.y,r,r)
+                        //draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa); 
+                    } 
+                    draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa);
+
+                    await sl(timestep)
+
+                    // clear screen
+                    ctxa.clearRect(0, 0, ctxc.width, ctxc.height);
+                    
+                }
+
+                
+            }
+            await sl(3000)
+            start_game()
         })();
         
 
