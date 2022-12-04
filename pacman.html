@@ -6,6 +6,7 @@
 
     <script>
         (async() => {
+
             // graphics input
             const   height = 300,
                     width = 600,
@@ -223,15 +224,9 @@
                 ctx.stroke();
                 ctx.closePath();
                 ctx.fill();
-                
                 ctx.save()
-
-                
                 ctx.rotate(direction_phase)
                 ctx.restore();
-                // ctx.stroke();
-                // ctx.closePath();
-                // ctx.fill();
             }
             function set_pac (coord) {
                 pac_p = coord
@@ -291,6 +286,64 @@
                 else if (name == 'd' || name == 'ArrowRight') {d = 'r'}
                 keep_moving_pac(d)
             }, false);
+
+
+
+            /* Load ghosts */
+            // https://en.wikipedia.org/wiki/Ghosts_(Pac-Man)
+            const ghost_increment = 2;
+            const d_x = fl(_grid[0].length/2), d_y = fl(_grid.length/2);
+            const spawn = _grid[d_y][d_x];
+            ghosts = [
+                {x:spawn.x+r,y:spawn.y+r,c:'red',v:''},
+                {x:spawn.x+r,y:spawn.y+r,c:'cyan',v:''},
+                {x:spawn.x+r,y:spawn.y+r,c:'orange',v:''},
+                {x:spawn.x+r,y:spawn.y+r,c:'pink',v:''},
+            ];
+            async function draw_ghost (coord, direction, color, resolution, ctx) {
+                const   rad = fl(resolution/2);
+                const c = [coord.x+rad, coord.y+rad];
+                ctx.beginPath();
+                ctx.arc(c[0], c[1], rad, -Math.PI, 0);
+                ctx.fillStyle = ctx.strokeStyle = color;
+                ctx.fillRect(coord.x, coord.y+rad, resolution, fl(rad/2));
+                for ([dx,dy] of [[2,2],[1.75,1.75],[1.5,2],[1.25,1.75],[1,2],[.75,1.75],[.5,2],[.25,1.75],[0,2],[0,1.75]]) {
+                    ctx.lineTo(coord.x+dx*rad, coord.y+dy*rad);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(c[0]-fl(rad/2.3), c[1]-fl(rad/3.5), fl(rad/3), 0, 2*Math.PI);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.closePath();
+                ctx.beginPath();
+                ctx.arc(c[0]+fl(rad/2.3), c[1]-fl(rad/3.5), fl(rad/3), 0, 2*Math.PI);
+                ctx.fill();
+                ctx.closePath();
+                // eyes
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                if (direction == 'u') {
+                    bias = [0,-.2]
+                } else if (direction == 'd') {
+                    bias = [0,.2]
+                } else if (direction == 'l') {
+                    bias = [-.2,0]
+                } else if (direction == 'r') {
+                    bias = [.2,0]
+                } else {
+                    bias = [0,0]
+                }
+                //ctx.arc(c[0]+fl(rad/bias[0]), c[1]-fl(rad/bias[1]), fl(rad/4), 0, 2*Math.PI);
+                ctx.arc(c[0]+fl(rad/2.3)+bias[0]*rad, c[1]-fl(rad/3.5)+bias[1]*rad, fl(rad/4), 0, 2*Math.PI);
+                ctx.arc(c[0]-fl(rad/2.3)+bias[0]*rad, c[1]-fl(rad/3.5)+bias[1]*rad, fl(rad/4), 0, 2*Math.PI);
+                ctx.fill();
+                ctx.closePath();
+            }
+            for (g of ghosts) {
+                draw_ghost(g, g.v, g.c, r, ctxa)
+            }
 
         })();
         
