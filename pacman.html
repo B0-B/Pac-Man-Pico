@@ -403,48 +403,51 @@
                 
                 while (true) {
 
-                    // update ghosts
-                    // for (const g of ghosts) {
+                    //update ghosts
+                    for (const g of ghosts) {
 
-                    //     pd = []; // possible directions
-                    //     for (d of ['l','r','u','d']) {
-                    //         if (can_move_in_dir(d, g.x, g.y, ghost_increment)) {
-                    //             pd.push(d)
-                    //         }
-                    //     }
-                    //     // test
-                    //     console.log('pd',pd)
-                    //     await sl(1000); 
-                    //     if (pd.length > 1) {
-                    //         if ((pd.includes('l') && g.v == 'r') || 
-                    //         (pd.includes('r') && g.v == 'l') || 
-                    //         (pd.includes('u') && g.v == 'd') || 
-                    //         (pd.includes('d') && g.v == 'u')) {
-                    //             pd.splice(pd.indexOf(g.v),1)
-                    //         }
-                    //         // smaple new direction
-                    //         if (!(u()<1/(1+.01*s)) || g.v=='') {
-                    //             g.v = pd[fl(u()*pd.length)];
-                    //             g.s=0;
-                    //         }
-                    //     } else {
-                    //         g.v = pd[0]
-                    //     }
-                    //     if (g.v== 'r') {
-                    //         g.x += ghost_increment
-                    //     } else if (g.v == 'l') {
-                    //         g.x -= ghost_increment
-                    //     } else if (g.v == 'u') {
-                    //         g.y -= ghost_increment
-                    //     } else if (g.v == 'd') {
-                    //         g.y += ghost_increment
-                    //     }
+                        pd = []; // possible directions
+                        for (d of ['l','r','u','d']) {
+                            //console.log('test',can_move_in_dir(d, g.x, g.y, ghost_increment))
+                            if (await can_move_in_dir(d, g.x, g.y, ghost_increment)) {
+                                pd.push(d)
+                            }
+                        }
+                        // test
+                        // console.log('pd',pd)
+                        // await sl(1000); 
+                        if (pd.length > 1) {
+                            if ((pd.includes('l') && g.v == 'r') || 
+                            (pd.includes('r') && g.v == 'l') || 
+                            (pd.includes('u') && g.v == 'd') || 
+                            (pd.includes('d') && g.v == 'u')) {
+                                pd.splice(pd.indexOf(g.v),1)
+                            }
+                            // sample new direction
+                            if (!(u()<1/(1+.01*s)) || g.v=='') {
+                                g.v = pd[fl(u()*pd.length)];
+                                g.s=0;
+                            }
+                        } else {
+                            g.v = pd[0]
+                        }
+
+
+                        if (g.v== 'r') {
+                            g.x += ghost_increment
+                        } else if (g.v == 'l') {
+                            g.x -= ghost_increment
+                        } else if (g.v == 'u') {
+                            g.y -= ghost_increment
+                        } else if (g.v == 'd') {
+                            g.y += ghost_increment
+                        }
                         
-                    //     //ctxa.clearRect(g.x-.2*r,g.y-.2*r,1.4*r,1.4*r);
-                    //     draw_ghost(g, g.v, g.c, r, ctxa);
+                        //ctxa.clearRect(g.x-.2*r,g.y-.2*r,1.4*r,1.4*r);
+                        draw_ghost(g, g.v, g.c, r, ctxa);
                         
-                    //     g.s++
-                    // }
+                        g.s++
+                    }
 
 
 
