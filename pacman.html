@@ -11,6 +11,7 @@
             const   height = 300,
                     width = 600,
                     delay = 0,
+                    timestep = 35,
                     resolution = 20,
                     wallColor = '#060654';
 
@@ -68,9 +69,7 @@
             function blockFromCoord (coord, grid) {
                 return _grid[fl(coord.y/r)][fl(coord.x/r)]
             }
-            async function clear (ctx) {
-                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-            }
+            
             function coordIsFree (x,y) {
                 return !blockFromCoord ({x:x,y:y}).v
             }
@@ -221,12 +220,15 @@
                 ctx.fillStyle = ctx.strokeStyle = '#d9e312';
                 ctx.lineTo(c[0],c[1]);
                 ctx.lineTo(c[0]+rad*Math.cos(mouth_state),c[1]+rad*Math.sin(mouth_state));
-                ctx.stroke();
+                //ctx.stroke();
                 ctx.closePath();
                 ctx.fill();
                 ctx.save()
                 ctx.rotate(direction_phase)
                 ctx.restore();
+            }
+            async function clear_pac () {
+                ctxa.clearRect(pac_p.x-.2*r,pac_p.y-.2*r,1.4*r,1.4*r);
             }
             function set_pac (coord) {
                 pac_p = coord
@@ -243,8 +245,8 @@
                 }
                 pac_s = (pac_s+1)%pac_mouth_states.length;
             }
-            async function can_move_in_dir (direction) {
-                const [x,y] = [pac_p.x+r/2,pac_p.y+r/2]; // center
+            async function can_move_in_dir (direction, x, y) {
+                [x,y] = [x+r/2,y+r/2]; // center
                 if (    (direction == 'r' && coordIsFree(x + tol + increment, y+tol) && coordIsFree(x + tol + increment, y-tol)) || 
                         (direction == 'l' && coordIsFree(x - tol - increment, y+tol) && coordIsFree(x - tol - increment, y-tol)) ||
                         (direction == 'u' && coordIsFree(x + tol, y - tol - increment) && coordIsFree(x - tol, y - tol - increment)) ||
@@ -254,17 +256,19 @@
                 return false
             }
             async function keep_moving_pac (direction) {
-                if (direction != pac_v && can_move_in_dir(direction)) {
+                if (direction != pac_v && can_move_in_dir(direction, pac_p.x, pac_p.y)) {
                     pac_v = direction;
                 } else {
                     return
                 }
                 while (direction == pac_v) {
-                    if (await can_move_in_dir(direction)) {
+                    if (await can_move_in_dir(direction, pac_p.x, pac_p.y)) {
                         move_pac(direction);
-                        clear(ctxa);
+                        //clear();
+                        await clear_pac();
+                        //ctxa.clearRect(pac_p.x,pac_p.y,r,r)
                         draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[direction], r, ctxa);
-                        await sl(30);
+                        await sl(timestep);
                     } else {
                         return
                     } 
@@ -294,11 +298,12 @@
             const ghost_increment = 2;
             const d_x = fl(_grid[0].length/2), d_y = fl(_grid.length/2);
             const spawn = _grid[d_y][d_x];
+            var ghosts_active = true;
             ghosts = [
-                {x:spawn.x+r,y:spawn.y+r,c:'red',v:''},
-                {x:spawn.x+r,y:spawn.y+r,c:'cyan',v:''},
-                {x:spawn.x+r,y:spawn.y+r,c:'orange',v:''},
-                {x:spawn.x+r,y:spawn.y+r,c:'pink',v:''},
+                {x:spawn.x+r,y:spawn.y+r,c:'red',v:'',s:0},
+                {x:spawn.x+r,y:spawn.y+r,c:'cyan',v:'',s:0},
+                {x:spawn.x+r,y:spawn.y+r,c:'orange',v:'',s:0},
+                {x:spawn.x+r,y:spawn.y+r,c:'pink',v:'',s:0},
             ];
             async function draw_ghost (coord, direction, color, resolution, ctx) {
                 const   rad = fl(resolution/2);
@@ -313,14 +318,13 @@
                 ctx.closePath();
                 ctx.fill();
                 ctx.beginPath();
-                ctx.arc(c[0]-fl(rad/2.3), c[1]-fl(rad/3.5), fl(rad/3), 0, 2*Math.PI);
-                ctx.fillStyle = '#fff';
-                ctx.fill();
+                for (s of [-1,1]) {
+                    ctx.arc(c[0]+s*fl(rad/2.3), c[1]-fl(rad/3.5), fl(rad/3), 0, 2*Math.PI);
+                    ctx.fillStyle = '#fff';
+                    ctx.fill();    
+                }
                 ctx.closePath();
-                ctx.beginPath();
-                ctx.arc(c[0]+fl(rad/2.3), c[1]-fl(rad/3.5), fl(rad/3), 0, 2*Math.PI);
-                ctx.fill();
-                ctx.closePath();
+                
                 // eyes
                 ctx.fillStyle = '#000';
                 ctx.beginPath();
@@ -341,8 +345,53 @@
                 ctx.fill();
                 ctx.closePath();
             }
+            async function ghost_move (ghost) {
+                const g = ghost;
+                while (ghosts_active) {
+                    possible_directions = [];
+                    for (d of ['l','r','u','d']) {
+                        if (can_move_in_dir(d), g.x, g.y) {
+                            possible_directions.push(d)
+                        }
+                    }
+                    if (possible_directions.length > 1) {
+                        if ((possible_directions.includes('l') && g.v == 'r') || 
+                        (possible_directions.includes('r') && g.v == 'l') || 
+                        (possible_directions.includes('u') && g.v == 'd') || 
+                        (possible_directions.includes('d') && g.v == 'u')) {
+                            possible_directions.splice(possible_directions.indexOf(g.v),1)
+                        }
+                        // smaple new direction
+                        if (!(u()<1/(1+.1*s)) || g.v=='') {
+                            g.v = possible_directions[fl(u()*possible_directions.length)];
+                            g.s=0;
+                        }
+                    } else {
+                        g.v = possible_directions[0]
+                    }
+
+                    
+                    if (g.v== 'r') {
+                        g.x += ghost_increment
+                    } else if (g.v == 'l') {
+                        g.x -= ghost_increment
+                    } else if (g.v == 'u') {
+                        g.y -= ghost_increment
+                    } else if (g.v == 'd') {
+                        g.y += ghost_increment
+                    }
+                    
+                    ctxa.clearRect(g.x-.2*r,g.y-.2*r,1.4*r,1.4*r);
+                    draw_ghost(g, g.v, g.c, r, ctxa);
+                    await sl(timestep)
+
+                    g.s++
+                }
+
+            }
             for (g of ghosts) {
                 draw_ghost(g, g.v, g.c, r, ctxa)
+                ghost_move(g);
             }
 
         })();
