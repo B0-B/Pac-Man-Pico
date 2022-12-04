@@ -244,7 +244,7 @@
                 }
                 pac_s = (pac_s+1)%pac_mouth_states.length;
             }
-            async function can_move_in_dir (direction, x, y, inc) {
+            async function can_move_in_dir (direction, x, y, inc, tol=tol) {
                 [x,y] = [x+r/2,y+r/2]; // center
                 if (    (direction == 'r' && coordIsFree(x + tol + inc, y+tol) && coordIsFree(x + tol + inc, y-tol)) || 
                         (direction == 'l' && coordIsFree(x - tol - inc, y+tol) && coordIsFree(x - tol - inc, y-tol)) ||
@@ -254,28 +254,7 @@
                         }
                 return false
             }
-            async function keep_moving_pac (direction) {
-                if (direction != pac_v && can_move_in_dir(direction, pac_p.x, pac_p.y, increment)) {
-                    pac_v = direction;
-                } else {
-                    return
-                }
-                while (direction == pac_v) {
-                    if (await can_move_in_dir(direction, pac_p.x, pac_p.y, increment)) {
-                        move_pac(direction);
-                        //clear();
-                        await clear_pac();
-                        //ctxa.clearRect(pac_p.x,pac_p.y,r,r)
-                        draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[direction], r, ctxa);
-                        await sl(timestep);
-                    } else {
-                        return
-                    } 
-                }
-            }
-
-            // init pacman at upper left corner
-            set_pac(_grid[1][1]);
+            
 
             // bind keys to pacman
             document.addEventListener('keydown', (event) => {
@@ -287,24 +266,18 @@
                 else if (name == 'a' || name == 'ArrowLeft') {d = 'l'} 
                 else if (name == 's' || name == 'ArrowDown') {d = 'd'} 
                 else if (name == 'd' || name == 'ArrowRight') {d = 'r'}
-                //keep_moving_pac(d)
                 pac_v = d
             }, false);
 
 
-            /* Load ghosts */
+            /* Ghosts data */
             // https://en.wikipedia.org/wiki/Ghosts_(Pac-Man)
             const ghost_increment = 2;
             const d_x = fl(_grid[0].length/2), d_y = fl(_grid.length/2);
             const spawn = _grid[d_y][d_x];
+            const walking_dist = 100;
+            const tol_g = .3 * r
             var ghosts_active = true;
-            const ghosts = [
-                {x:spawn.x+r,y:spawn.y+r,c:'red',v:'',s:0},
-                {x:spawn.x+r,y:spawn.y+r,c:'cyan',v:'',s:0},
-                {x:spawn.x+r,y:spawn.y+r,c:'orange',v:'',s:0},
-                {x:spawn.x+r,y:spawn.y+r,c:'pink',v:'',s:0},
-            ];
-            
             async function draw_ghost (coord, direction, color, resolution, ctx) {
                 const   rad = fl(resolution/2);
                 const c = [coord.x+rad, coord.y+rad];
@@ -345,62 +318,24 @@
                 ctx.fill();
                 ctx.closePath();
             }
-            async function ghost_move (ghost) {
-                const g = ghost;
-                while (ghosts_active) {
-                    pd = []; // possible directions
-                    for (d of ['l','r','u','d']) {
-                        if (can_move_in_dir(d), g.x, g.y) {
-                            pd.push(d)
-                        }
-                    }
-                    if (pd.length > 1) {
-                        if ((pd.includes('l') && g.v == 'r') || 
-                        (pd.includes('r') && g.v == 'l') || 
-                        (pd.includes('u') && g.v == 'd') || 
-                        (pd.includes('d') && g.v == 'u')) {
-                            pd.splice(pd.indexOf(g.v),1)
-                        }
-                        // smaple new direction
-                        if (!(u()<1/(1+.1*s)) || g.v=='') {
-                            g.v = pd[fl(u()*pd.length)];
-                            g.s=0;
-                        }
-                    } else {
-                        g.v = pd[0]
-                    }
-
-                    
-                    if (g.v== 'r') {
-                        g.x += ghost_increment
-                    } else if (g.v == 'l') {
-                        g.x -= ghost_increment
-                    } else if (g.v == 'u') {
-                        g.y -= ghost_increment
-                    } else if (g.v == 'd') {
-                        g.y += ghost_increment
-                    }
-                    
-                    ctxa.clearRect(g.x-.2*r,g.y-.2*r,1.4*r,1.4*r);
-                    draw_ghost(g, g.v, g.c, r, ctxa);
-                    await sl(timestep)
-
-                    g.s++
-                }
-
-            }
+            
             
             // render all objects on active canvas 
+            set_pac(_grid[1][1]);
+            draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa);
+            const ghosts = [
+            {x:spawn.x+r,y:spawn.y+r,c:'red',v:'',s:0},
+            {x:spawn.x+r,y:spawn.y+r,c:'cyan',v:'',s:0},
+            {x:spawn.x+r,y:spawn.y+r,c:'orange',v:'',s:0},
+            {x:spawn.x+r,y:spawn.y+r,c:'pink',v:'',s:0}];
             for (g of ghosts) {
                 draw_ghost(g, g.v, g.c, r, ctxa);
-                //ghost_move(g);
             }
-            draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa);
             
-            // init game
-            async function start_game () {
+            
+            // define main engine for rendering dynamics on active canvas
+            async function engine () {
 
-                
                 while (true) {
 
                     //update ghosts
@@ -408,14 +343,10 @@
 
                         pd = []; // possible directions
                         for (d of ['l','r','u','d']) {
-                            //console.log('test',can_move_in_dir(d, g.x, g.y, ghost_increment))
-                            if (await can_move_in_dir(d, g.x, g.y, ghost_increment)) {
+                            if (await can_move_in_dir(d, g.x, g.y, ghost_increment, tol_g)) {
                                 pd.push(d)
                             }
                         }
-                        // test
-                        // console.log('pd',pd)
-                        // await sl(1000); 
                         if (pd.length > 1) {
                             if ((pd.includes('l') && g.v == 'r') || 
                             (pd.includes('r') && g.v == 'l') || 
@@ -424,14 +355,13 @@
                                 pd.splice(pd.indexOf(g.v),1)
                             }
                             // sample new direction
-                            if (!(u()<1/(1+.01*s)) || g.v=='') {
+                            if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
                                 g.v = pd[fl(u()*pd.length)];
                                 g.s=0;
                             }
                         } else {
                             g.v = pd[0]
                         }
-
 
                         if (g.v== 'r') {
                             g.x += ghost_increment
@@ -443,25 +373,16 @@
                             g.y += ghost_increment
                         }
                         
-                        //ctxa.clearRect(g.x-.2*r,g.y-.2*r,1.4*r,1.4*r);
                         draw_ghost(g, g.v, g.c, r, ctxa);
                         
                         g.s++
                     }
 
-
-
                     // update pacman
-                    if (pac_v != '' && await can_move_in_dir(pac_v, pac_p.x, pac_p.y, increment)) {
-                        console.log('move', pac_v)
-                        move_pac(pac_v);
-                        //clear();
-                        //await clear_pac();
-                        //ctxa.clearRect(pac_p.x,pac_p.y,r,r)
-                        //draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa); 
-                    } 
+                    if (pac_v != '' && await can_move_in_dir(pac_v, pac_p.x, pac_p.y, increment)) {move_pac(pac_v)} 
                     draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa);
 
+                    // delay
                     await sl(timestep)
 
                     // clear screen
@@ -471,8 +392,11 @@
 
                 
             }
-            await sl(3000)
-            start_game()
+            
+            // initialize game sequence
+            await sl(3e3)
+            engine();
+            await sl(5e3)
         })();
         
 
