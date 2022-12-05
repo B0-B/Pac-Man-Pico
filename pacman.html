@@ -13,7 +13,8 @@
                     delay = 0,
                     timestep = 35,
                     resolution = 20,
-                    wallColor = '#060654';
+                    wallColor = '#1b0f9d',
+                    retroBg = '#121212';
 
             // general
             function u(){return Math.random()}
@@ -36,7 +37,7 @@
             // format canvas and add to body
             ctxc.width = width;
             ctxc.height = height;
-            ctx.fillStyle = "000";
+            ctx.fillStyle = retroBg;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             canvas.style.width = columns*r;
             canvas.style.height = rows*r;
@@ -140,7 +141,7 @@
 
                 // cut out cage door
                 door = {col: fl(start[0]+dim[0]/2),row: fl(start[1])} 
-                await block(door.col, door.row, res, g, ctx, '#000');
+                await block(door.col, door.row, res, g, ctx, retroBg);
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(door.col*res, door.row*res+.4*res, res, .2*res);
                 //await close_door(door);
@@ -196,17 +197,17 @@
                     [x,y] = [2+fl(u()*(col-4)),2+fl(u()*(row-4))];
                     outside_cage = (x < start[0] || x > start[0]+dim[0]) || (y < start[1] || y > start[1]+dim[1])
                     if (outside_cage && !free(x,y,g) && ((!free(x+1,y,g) && !free(x-1,y,g) && free(x,y+1,g) && free(x,y-1,g)) || (free(x+1,y,g) && free(x-1,y,g) && !free(x,y+1,g) && !free(x,y-1,g)))) {
-                        await block(x, y, res, g, ctx, '#000', 0);
+                        await block(x, y, res, g, ctx, retroBg, 0);
                         success++
                     }
                 }
             }
             async function open_door (timeout, door) {
-                await block(door.col, door.row, r, _grid, ctx, '#000',0);
+                await block(door.col, door.row, r, _grid, ctx, retroBg,0);
                 ctx.fillStyle = '#383';
                 ctx.fillRect(door.col*r, door.row*r+.4*r, r, .2*r);
                 await sl(timeout);
-                await block(door.col, door.row, r, _grid, ctx, '#000',1);
+                await block(door.col, door.row, r, _grid, ctx, retroBg,1);
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(door.col*r, door.row*r+.4*r, r, .2*r);
             }
@@ -327,7 +328,7 @@
                 ctx.closePath();
                 
                 // eyes
-                ctx.fillStyle = '#000';
+                ctx.fillStyle = retroBg;
                 ctx.beginPath();
                 if (direction == 'u') {
                     bias = [0,-.2]
