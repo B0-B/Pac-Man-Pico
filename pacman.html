@@ -77,19 +77,26 @@
                 if (grid[row][col].v) {return false}
                 return true
             }
-            function space (col_old, row_old, col_new, row_new, grid, radius=1) {
-                if (!free(col_new, row_new, grid)){return false}
+            function space (x_old, y_old, x_new, y_new, grid, radius=1) {
+                if (!free(x_new, y_new, grid)){return false}
                 for (let i of [-radius,0,radius]) {
                     for (let j of [-radius, 0, radius]) {
                         if (i==0 && j==0){continue}
-                        if (row_new+i==row_old || col_new+j==col_old){continue} 
-                        if (grid[row_new+i][col_new+j].v) {
+                        if (y_new+i==y_old || x_new+j==x_old){continue} 
+                        if (grid[y_new+i][x_new+j].v) {
                             return false
                         }
                     }
                 }
                 return true
             }
+            function in_cage (x, y) {
+                const   col = fl(x/r),
+                        row = fl(x/r);
+                
+            }
+            var door;
+
             // -- helper methods end --
             async function maze (grid_obj, ctx, color, snakes=100, length=100, gaps=2) {
                 
@@ -131,6 +138,13 @@
                     await block(start[0]+dim[0], start[1]+y, res, g, ctx, color);
                 }
 
+                // cut out cage door
+                door = {col: fl(start[0]+dim[0]/2),row: fl(start[1])} 
+                await block(door.col, door.row, res, g, ctx, '#000');
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(door.col*res, door.row*res+.4*res, res, .2*res);
+                //await close_door(door);
+
                 // fill internal space with snake method
                 let p = {x:2,y:2},
                     br = 0;
@@ -151,12 +165,12 @@
                     v = '';
                     count = 0;
                     for (let i=0; i<length; i++) {
+
                         // check directions
                         d=[];
-                        if (space(p.x, p.y, p.x-1, p.y, g)) {d.push('l')}
-                        if (space(p.x, p.y, p.x+1, p.y, g)) {d.push('r')}
-                        if (space(p.x, p.y, p.x, p.y+1, g)) {d.push('u')}
-                        if (space(p.x, p.y, p.x, p.y-1, g)) {d.push('d')}
+                        for (let c of [[p.x-1, p.y,'l'],[p.x+1, p.y,'r'],[p.x, p.y+1,'u'],[p.x, p.y-1,'d']]) {
+                            if (space(p.x, p.y, c[0], c[1], g)) {d.push(c[2])}
+                        }
 
                         // throw a die with geom. decreasing probability to keep the same direction
                         if (!(d.includes(v) && u() < 1/(1+count))) {
@@ -187,6 +201,20 @@
                     }
                 }
             }
+            async function open_door (timeout, door) {
+                await block(door.col, door.row, r, _grid, ctx, '#000',0);
+                ctx.fillStyle = '#383';
+                ctx.fillRect(door.col*r, door.row*r+.4*r, r, .2*r);
+                await sl(timeout);
+                await block(door.col, door.row, r, _grid, ctx, '#000',1);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(door.col*r, door.row*r+.4*r, r, .2*r);
+            }
+            async function close_door (door) {
+                await open_door(0, door)
+            }
+
+            // initialize maze
             maze(_grid, ctx, wallColor, snakes=30, length=100, gaps=5);
 
             /*  Active frame */
@@ -212,19 +240,20 @@
                 tol = .45 * r;
             async function draw_pacman (coord, mouth_state, direction_phase, resolution, ctx) {
                 
-                rad = fl(resolution/2);
-                const c = [coord.x+rad, coord.y+rad]
+                const rad = fl(resolution/2);
+                const c = [coord.x+rad, coord.y+rad];
+
                 ctx.beginPath();
                 ctx.arc(c[0], c[1], rad, mouth_state, 2*Math.PI-mouth_state);
                 ctx.fillStyle = ctx.strokeStyle = '#d9e312';
                 ctx.lineTo(c[0],c[1]);
                 ctx.lineTo(c[0]+rad*Math.cos(mouth_state),c[1]+rad*Math.sin(mouth_state));
-                //ctx.stroke();
                 ctx.closePath();
                 ctx.fill();
                 ctx.save()
                 ctx.rotate(direction_phase)
                 ctx.restore();
+
             }
             async function clear_pac () {
                 ctxa.clearRect(pac_p.x-.2*r,pac_p.y-.2*r,1.4*r,1.4*r);
@@ -244,7 +273,7 @@
                 }
                 pac_s = (pac_s+1)%pac_mouth_states.length;
             }
-            async function can_move_in_dir (direction, x, y, inc, tol=tol) {
+            async function can_move_in_dir (direction, x, y, inc, tol) {
                 [x,y] = [x+r/2,y+r/2]; // center
                 if (    (direction == 'r' && coordIsFree(x + tol + inc, y+tol) && coordIsFree(x + tol + inc, y-tol)) || 
                         (direction == 'l' && coordIsFree(x - tol - inc, y+tol) && coordIsFree(x - tol - inc, y-tol)) ||
@@ -261,7 +290,6 @@
                 var name = event.key,
                     code = event.code,
                     d;
-                console.log(name, code)
                 if (name == 'w' || name == 'ArrowUp') {d = 'u'} 
                 else if (name == 'a' || name == 'ArrowLeft') {d = 'l'} 
                 else if (name == 's' || name == 'ArrowDown') {d = 'd'} 
@@ -275,8 +303,8 @@
             const ghost_increment = 2;
             const d_x = fl(_grid[0].length/2), d_y = fl(_grid.length/2);
             const spawn = _grid[d_y][d_x];
-            const walking_dist = 100;
-            const tol_g = .3 * r
+            const tol_g = .3 * r;
+            var walking_dist = 10;
             var ghosts_active = true;
             async function draw_ghost (coord, direction, color, resolution, ctx) {
                 const   rad = fl(resolution/2);
@@ -379,7 +407,7 @@
                     }
 
                     // update pacman
-                    if (pac_v != '' && await can_move_in_dir(pac_v, pac_p.x, pac_p.y, increment)) {move_pac(pac_v)} 
+                    if (pac_v != '' && await can_move_in_dir(pac_v, pac_p.x, pac_p.y, increment, tol)) {move_pac(pac_v)} 
                     draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa);
 
                     // delay
@@ -397,6 +425,7 @@
             await sl(3e3)
             engine();
             await sl(5e3)
+            await open_door(10e3, door)
         })();
         
 
