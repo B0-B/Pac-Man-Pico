@@ -214,10 +214,6 @@
                 await open_door(0, door)
             }
             function in_cage (x, y) {
-
-                // let g = _grid;
-                // const s = [fl((g[0].length-door.col)/2), fl((g.length-door.row)/2)];
-                // const d = [door.col,door.row];
                 
                 _c = fl(x/r);
                 _r = fl(y/r);
@@ -321,6 +317,8 @@
             const spawn = _grid[d_y][d_x];
             const tol_g = .3 * r;
             const backwards = {'l':'r','r':'l','u':'d','d':'u'}
+            const randomness = 0.1; // how likely to take a turn on a crossing except the origin direction
+            var chase = false;
             var walking_dist = 10;
             var ghosts_active = true;
             async function draw_ghost (coord, direction, color, resolution, ctx) {
@@ -382,7 +380,14 @@
                 const backDir = backwards[g.v];
 
                 // pick direction if there is only one option
-                if (pd.length == 1) {direction = pd[0]}
+                if (pd.length < 2 ) {direction = pd[0]}
+
+                // acc. to provided randomness, sample a random move sometimes
+                if (pd.length > 2 && u() < randomness) {
+                    pd.splice(pd.indexOf(backDir), 1)
+                    direction = pd[fl(u()*pd.length)];
+                    g.s=0;
+                }
 
                 // case dependent direction and move parameters
                 if (in_cage(g.x, g.y)) {
@@ -399,15 +404,58 @@
                         }
                     }
                     
-                } else {
+                } 
 
-                    walking_dist = 100
+                // tries to minimize distance to pac
+                else if (chase) {
+
+                    walking_dist = 150
+
+                }
+
+                // random movement
+                else {
+
+                    walking_dist = 150
 
                     if (!direction) {
+
+                        // sample new direction after a walking distance (on avg.)
                         if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
-                            direction = pd[fl(u()*pd.length)];
+
+                            // determine direction with longest distance
+                            target_dir = '', length = 0, l=0;
+                            for (d of pd) {
+                                let [pos_x, pos_y] = [g.x, g.y];
+                                while (true) {
+                                    if (d == 'r') {
+                                        pos_x += ghost_increment
+                                    } else if (d == 'l') {
+                                        pos_x -= ghost_increment
+                                    } else if (d == 'u') {
+                                        pos_y -= ghost_increment
+                                    } else if (d == 'd') {
+                                        pos_y += ghost_increment
+                                    }
+                                    
+                                    if (coordIsFree(pos_x, pos_y)) {
+                                        l++
+                                    } else {
+                                        if (l>length) {
+                                            length = l;
+                                            target_dir = d;
+                                        } 
+                                        l = 0;
+                                        break
+                                    }
+                                }
+                            }
+                            
+                            // apply new direction
+                            direction = target_dir;
                             g.s=0;
-                        }
+
+                        } 
                     }
 
                 }
@@ -431,6 +479,7 @@
 
                 // increment step count
                 g.s++
+
             }
             
             // render all objects on active canvas 
@@ -448,7 +497,7 @@
             
             // define main engine for rendering dynamics on active canvas
             async function engine () {
-
+                
                 while (true) {
 
                     // update pacman
