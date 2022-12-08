@@ -315,9 +315,9 @@
             const ghost_increment = 2;
             const d_x = fl(_grid[0].length/2), d_y = fl(_grid.length/2);
             const spawn = _grid[d_y][d_x];
-            const tol_g = .3 * r;
+            const tol_g = .4 * r;
             const backwards = {'l':'r','r':'l','u':'d','d':'u'}
-            const randomness = 0.1; // how likely to take a turn on a crossing except the origin direction
+            const randomness = 0.05; // how likely to take a turn on a crossing except the origin direction
             var chase = false;
             var walking_dist = 10;
             var ghosts_active = true;
@@ -360,6 +360,22 @@
                 ctx.fill();
                 ctx.closePath();
             }
+            function increment_in_dir (x,y,d,i) {
+                if (d == 'r') {
+                    x += i
+                } else if (d == 'l') {
+                    x -= i
+                } else if (d == 'u') {
+                    y -= i
+                } else if (d == 'd') {
+                    y += i
+                } return [x,y]
+            }
+            function sample_new_dir (g, d_old, pd) {
+                pd.splice(pd.indexOf(d_old),1);
+                g.s = 0;
+                return pd[fl(u()*pd.length)];
+            }
             async function move_ghost (ghost) {
 
                 /* agent algorithm */
@@ -384,9 +400,39 @@
 
                 // acc. to provided randomness, sample a random move sometimes
                 if (pd.length > 2 && u() < randomness) {
-                    pd.splice(pd.indexOf(backDir), 1)
-                    direction = pd[fl(u()*pd.length)];
-                    g.s=0;
+                    direction = sample_new_dir(g, backDir, pd);
+                }
+
+                // determine direction with longest distance
+                target_dir = ''
+                if (!direction) {
+                    length = 0, l=0; inc = 10 * ghost_increment;
+                    for (d of pd) {
+                        let [pos_x, pos_y] = [g.x, g.y];
+                        
+                        while (true) {
+                            if (d == 'r') {
+                                pos_x += inc
+                            } else if (d == 'l') {
+                                pos_x -= inc
+                            } else if (d == 'u') {
+                                pos_y -= inc
+                            } else if (d == 'd') {
+                                pos_y += inc
+                            }
+                            
+                            if (coordIsFree(pos_x, pos_y)) {
+                                l++
+                            } else {
+                                if (l>length) {
+                                    length = l;
+                                    target_dir = d;
+                                } 
+                                l = 0;
+                                break
+                            }
+                        }
+                    }
                 }
 
                 // case dependent direction and move parameters
@@ -395,12 +441,10 @@
                     walking_dist = 20
 
                     if (!direction) {
-                        pd.splice(pd.indexOf(backDir),1)
                         
                         // sample new direction
                         if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
-                            direction = pd[fl(u()*pd.length)];
-                            g.s=0;
+                            direction = sample_new_dir(g, backDir, pd);
                         }
                     }
                     
@@ -416,40 +460,12 @@
                 // random movement
                 else {
 
-                    walking_dist = 150
+                    walking_dist = 200
 
                     if (!direction) {
 
                         // sample new direction after a walking distance (on avg.)
                         if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
-
-                            // determine direction with longest distance
-                            target_dir = '', length = 0, l=0;
-                            for (d of pd) {
-                                let [pos_x, pos_y] = [g.x, g.y];
-                                while (true) {
-                                    if (d == 'r') {
-                                        pos_x += ghost_increment
-                                    } else if (d == 'l') {
-                                        pos_x -= ghost_increment
-                                    } else if (d == 'u') {
-                                        pos_y -= ghost_increment
-                                    } else if (d == 'd') {
-                                        pos_y += ghost_increment
-                                    }
-                                    
-                                    if (coordIsFree(pos_x, pos_y)) {
-                                        l++
-                                    } else {
-                                        if (l>length) {
-                                            length = l;
-                                            target_dir = d;
-                                        } 
-                                        l = 0;
-                                        break
-                                    }
-                                }
-                            }
                             
                             // apply new direction
                             direction = target_dir;
@@ -466,15 +482,23 @@
                 }
                 
                 
-                // apply direction
-                if (g.v== 'r') {
-                    g.x += ghost_increment
-                } else if (g.v == 'l') {
-                    g.x -= ghost_increment
-                } else if (g.v == 'u') {
-                    g.y -= ghost_increment
-                } else if (g.v == 'd') {
-                    g.y += ghost_increment
+                // check if the target coordinate is free, then apply direction
+                let [x,y] = [g.x,g.y];
+                [x,y] = increment_in_dir(x,y,g.v,ghost_increment);
+                
+                if (coordIsFree(x,y)) {
+                    g.x = x;
+                    g.y = y;
+                } else {
+                    // if backwards is the longest path always pick it
+                    if (target_dir == backDir) {
+                        g.v = backDir
+                    } 
+                    // otherwise sample a new non-backward path
+                    else {
+                        g.v = sample_new_dir(g, backDir, pd)
+                    }
+                    
                 }
 
                 // increment step count
@@ -526,7 +550,7 @@
             await sl(3e3)
             engine();
             await sl(5e3)
-            await open_door(10e3, door)
+            await open_door(100e3, door)
 
         })();
         
