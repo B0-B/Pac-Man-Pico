@@ -8,10 +8,11 @@
         (async() => {
 
             // graphics input
-            const   height = 300,
+            const   height = 400,
                     width = 600,
                     delay = 0,
                     timestep = 35,
+                    mazeWallGaps = 5,
                     resolution = 20,
                     wallColor = '#1b0f9d',
                     retroBg = '#121212';
@@ -68,7 +69,6 @@
                 }
             }
             function blockFromCoord (coord) {
-                console.log(fl(coord.y/r),fl(coord.x/r))
                 return _grid[fl(coord.y/r)][fl(coord.x/r)]
             }
             function coordIsFree (x,y) {
@@ -91,12 +91,8 @@
                 }
                 return true
             }
-            function in_cage (x, y) {
-                const   col = fl(x/r),
-                        row = fl(x/r);
-                
-            }
-            var door;
+            
+            var door, cage;
 
             // -- helper methods end --
             async function maze (grid_obj, ctx, color, snakes=100, length=100, gaps=2) {
@@ -138,9 +134,10 @@
                     await block(start[0], start[1]+y, res, g, ctx, color);
                     await block(start[0]+dim[0], start[1]+y, res, g, ctx, color);
                 }
+                cage = [[start[0],start[0]+dim[0]],[start[1],start[1]+dim[1]]];
 
                 // cut out cage door
-                door = {col: fl(start[0]+dim[0]/2),row: fl(start[1])} 
+                door = {col: fl(start[0]+dim[0]/2), row: fl(start[1])} 
                 await block(door.col, door.row, res, g, ctx, retroBg);
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(door.col*res, door.row*res+.4*res, res, .2*res);
@@ -155,10 +152,12 @@
                     const lim = row*col*100;
                     for (let z = 0; z < lim; z++) {
                         [x,y] = [fl(u()*col), fl(u()*row)]
-                        if (space(x,y,x,y,g)) {p.x=x;p.y=y;break}
+                        if (space(x,y,x,y,g) && !in_cage(x*r,y*r)) {p.x=x;p.y=y;break}
                         if (z == lim-1){br=1;break}
                     }
                     if(br){break}
+
+
 
                     // fill starting point
                     block(p.x, p.y, res, g, ctx, color)
@@ -214,9 +213,25 @@
             async function close_door (door) {
                 await open_door(0, door)
             }
+            function in_cage (x, y) {
+
+                // let g = _grid;
+                // const s = [fl((g[0].length-door.col)/2), fl((g.length-door.row)/2)];
+                // const d = [door.col,door.row];
+                
+                _c = fl(x/r);
+                _r = fl(y/r);
+
+                if ( _c > cage[0][0] && _c < cage[0][1] && _r > cage[1][0] && _r < cage[1][1] ) {
+                    return true
+                } 
+                
+                return false
+
+            }
 
             // initialize maze
-            maze(_grid, ctx, wallColor, snakes=30, length=100, gaps=5);
+            maze(_grid, ctx, wallColor, snakes=30, length=100, gaps=mazeWallGaps);
 
             /*  Active frame */
             const   canvas_active = document.createElement('canvas');   
@@ -305,6 +320,7 @@
             const d_x = fl(_grid[0].length/2), d_y = fl(_grid.length/2);
             const spawn = _grid[d_y][d_x];
             const tol_g = .3 * r;
+            const backwards = {'l':'r','r':'l','u':'d','d':'u'}
             var walking_dist = 10;
             var ghosts_active = true;
             async function draw_ghost (coord, direction, color, resolution, ctx) {
@@ -341,13 +357,81 @@
                 } else {
                     bias = [0,0]
                 }
-                //ctx.arc(c[0]+fl(rad/bias[0]), c[1]-fl(rad/bias[1]), fl(rad/4), 0, 2*Math.PI);
                 ctx.arc(c[0]+fl(rad/2.3)+bias[0]*rad, c[1]-fl(rad/3.5)+bias[1]*rad, fl(rad/4), 0, 2*Math.PI);
                 ctx.arc(c[0]-fl(rad/2.3)+bias[0]*rad, c[1]-fl(rad/3.5)+bias[1]*rad, fl(rad/4), 0, 2*Math.PI);
                 ctx.fill();
                 ctx.closePath();
             }
-            
+            async function move_ghost (ghost) {
+
+                /* agent algorithm */
+
+                const g = ghost;
+
+                var direction;
+
+                // determine possible directions
+                pd = []; 
+                for (d of ['l','r','u','d']) {
+                    if (await can_move_in_dir(d, g.x, g.y, ghost_increment, tol_g)) {
+                        pd.push(d)
+                    }
+                }
+
+                // determine backward direction
+                const backDir = backwards[g.v];
+
+                // pick direction if there is only one option
+                if (pd.length == 1) {direction = pd[0]}
+
+                // case dependent direction and move parameters
+                if (in_cage(g.x, g.y)) {
+
+                    walking_dist = 20
+
+                    if (!direction) {
+                        pd.splice(pd.indexOf(backDir),1)
+                        
+                        // sample new direction
+                        if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
+                            direction = pd[fl(u()*pd.length)];
+                            g.s=0;
+                        }
+                    }
+                    
+                } else {
+
+                    walking_dist = 100
+
+                    if (!direction) {
+                        if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
+                            direction = pd[fl(u()*pd.length)];
+                            g.s=0;
+                        }
+                    }
+
+                }
+
+                // update direction
+                if (direction) {
+                    g.v = direction;
+                }
+                
+                
+                // apply direction
+                if (g.v== 'r') {
+                    g.x += ghost_increment
+                } else if (g.v == 'l') {
+                    g.x -= ghost_increment
+                } else if (g.v == 'u') {
+                    g.y -= ghost_increment
+                } else if (g.v == 'd') {
+                    g.y += ghost_increment
+                }
+
+                // increment step count
+                g.s++
+            }
             
             // render all objects on active canvas 
             set_pac(_grid[1][1]);
@@ -367,49 +451,17 @@
 
                 while (true) {
 
-                    //update ghosts
-                    for (const g of ghosts) {
-
-                        pd = []; // possible directions
-                        for (d of ['l','r','u','d']) {
-                            if (await can_move_in_dir(d, g.x, g.y, ghost_increment, tol_g)) {
-                                pd.push(d)
-                            }
-                        }
-                        if (pd.length > 1) {
-                            if ((pd.includes('l') && g.v == 'r') || 
-                            (pd.includes('r') && g.v == 'l') || 
-                            (pd.includes('u') && g.v == 'd') || 
-                            (pd.includes('d') && g.v == 'u')) {
-                                pd.splice(pd.indexOf(g.v),1)
-                            }
-                            // sample new direction
-                            if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
-                                g.v = pd[fl(u()*pd.length)];
-                                g.s=0;
-                            }
-                        } else {
-                            g.v = pd[0]
-                        }
-
-                        if (g.v== 'r') {
-                            g.x += ghost_increment
-                        } else if (g.v == 'l') {
-                            g.x -= ghost_increment
-                        } else if (g.v == 'u') {
-                            g.y -= ghost_increment
-                        } else if (g.v == 'd') {
-                            g.y += ghost_increment
-                        }
-                        
-                        draw_ghost(g, g.v, g.c, r, ctxa);
-                        
-                        g.s++
-                    }
-
                     // update pacman
                     if (pac_v != '' && await can_move_in_dir(pac_v, pac_p.x, pac_p.y, increment, tol)) {move_pac(pac_v)} 
                     draw_pacman(pac_p, pac_mouth_states[pac_s], pac_direction_phase[pac_v], r, ctxa);
+
+                    //update ghosts
+                    for (const g of ghosts) {
+
+                        await move_ghost(g);
+                        draw_ghost(g, g.v, g.c, r, ctxa);
+
+                    }
 
                     // delay
                     await sl(timestep)
@@ -419,7 +471,6 @@
                     
                 }
 
-                
             }
             
             // initialize game sequence
@@ -427,6 +478,7 @@
             engine();
             await sl(5e3)
             await open_door(10e3, door)
+
         })();
         
 
