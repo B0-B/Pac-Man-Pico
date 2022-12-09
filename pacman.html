@@ -312,13 +312,13 @@
 
             /* Ghosts data */
             // https://en.wikipedia.org/wiki/Ghosts_(Pac-Man)
-            const ghost_increment = 2;
+            var ghost_increment = 2;
             const d_x = fl(_grid[0].length/2), d_y = fl(_grid.length/2);
             const spawn = _grid[d_y][d_x];
-            const tol_g = .4 * r;
+            const tol_g = .45 * r;
             const backwards = {'l':'r','r':'l','u':'d','d':'u'}
-            const randomness = 0.05; // how likely to take a turn on a crossing except the origin direction
-            var chase = false;
+            const randomness = 0.2; // how likely to take a turn on a crossing except the origin direction
+            var chase = true;
             var walking_dist = 10;
             var ghosts_active = true;
             async function draw_ghost (coord, direction, color, resolution, ctx) {
@@ -376,6 +376,9 @@
                 g.s = 0;
                 return pd[fl(u()*pd.length)];
             }
+            function dist_to_pac (x, y) {
+                return (x-pac_p.x)**2+(y-pac_p.y)**2
+            }
             async function move_ghost (ghost) {
 
                 /* agent algorithm */
@@ -406,20 +409,13 @@
                 // determine direction with longest distance
                 target_dir = ''
                 if (!direction) {
-                    length = 0, l=0; inc = r-1;
+                    ghost_increment = 2
+                    length = 0, l=0; inc = r/2-1;
                     for (d of pd) {
                         let [pos_x, pos_y] = [g.x, g.y];
                         
                         while (true) {
-                            if (d == 'r') {
-                                pos_x += inc
-                            } else if (d == 'l') {
-                                pos_x -= inc
-                            } else if (d == 'u') {
-                                pos_y -= inc
-                            } else if (d == 'd') {
-                                pos_y += inc
-                            }
+                            [pos_x,pos_y]=increment_in_dir(pos_x,pos_y,d,inc);
                             
                             if (coordIsFree(pos_x, pos_y)) {
                                 l++
@@ -439,6 +435,7 @@
                 if (in_cage(g.x, g.y)) {
 
                     walking_dist = 20
+                    ghost_increment = 2
 
                     if (!direction) {
                         
@@ -446,6 +443,7 @@
                         if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
                             direction = sample_new_dir(g, backDir, pd);
                         }
+
                     }
                     
                 } 
@@ -453,7 +451,24 @@
                 // tries to minimize distance to pac
                 else if (chase) {
 
-                    walking_dist = 150
+                    ghost_increment =  4
+                    walking_dist = 300;
+
+                    if (u() < 0.1) {
+                        dist = 1e10;
+                        if (!direction) {
+                            for(let d of pd) {
+                                [pos_x, pos_y] = increment_in_dir(g.x,g.y,d,inc);
+                                console.log(pos_x, pos_y)
+                                dtp = dist_to_pac(pos_x, pos_y);
+                                if (dtp < dist) {
+                                    dist = dtp;
+                                    direction = d
+                                }
+                            }
+                        }
+                    }
+                    
 
                 }
 
@@ -461,7 +476,8 @@
                 else {
 
                     walking_dist = 200
-
+                    ghost_increment = 2
+                    
                     if (!direction) {
 
                         // sample new direction after a walking distance (on avg.)
