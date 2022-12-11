@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+</head>
+<body style="background:#454545">
+
+    <script>
+        (async() => {
+
+            // graphics
+            const   height = 480,
+                    width = 720,
+                    mazeWallGapRate = 0.1,
+                    resolution = 40,
+                    wallColor = '#1b0f9d',
+                    retroBg = '#121212',
+                    maxFrameRate = 30;
+
+            // general
+            function u(){return Math.random()}
+            function fl(x){return Math.floor(x)}
+            function sl(t){return new Promise(r=>setTimeout(r,t))}
+
+            // format body
+            const body = document.body;
+            body.style.margin = 0;
+            body.style.overflow = 'hidden';
+
+            // create canvas layers
+            // Layer 1: Background Layer
+            // Layer 2: Dynamic Layer
+            const   r = resolution;
+            const   columns = fl(width/r);
+            const   rows = fl(height/r);
+            var layers = [];
+            
+            for (i of [1,2]) {
+                const el = document.createElement('canvas');
+                const obj = {
+                    canvas: el,
+                    ctx: el.getContext('2d'),
+                }
+                await sl(.1)
+                obj.ctx.canvas.width = width;
+                obj.ctx.canvas.height = height;
+                if (i == 1) {
+                    obj.ctx.fillStyle = retroBg;
+                    obj.ctx.fillRect(0, 0, width, height);
+                } else if (i == 2) {
+                    el.style.position = 'absolute';
+                    el.style.top = '0';
+                    el.style.left = '0';
+                }
+                el.style.width = columns * r;
+                el.style.height = rows * r;
+                el.style.zIndex = `${i}`;
+                body.prepend(el);
+                layers.push(obj);
+            }
+            
+            /* PacMan data */
+            var pac = {
+                p: {x:0,y:0},
+                v: 1,               // velocity in px/s
+                d: '',
+                tol: .45 * r,       // tolerance spatial object extension
+                mouth: [.2,.5,.8,.9,.8,.5],
+                phase: {'r': 0, 'u':Math.PI/2, 'l': Math.PI, 'd': 1.5*Math.PI},
+                coins: 0
+            }
+
+            /* Ghost data */
+            // https://en.wikipedia.org/wiki/Ghosts_(Pac-Man)
+            var ghost = {
+                // main ghost object
+                back: {'l':'r','r':'l','u':'d','d':'u'},
+                spawn: {x:fl(columns/2)*r,y:fl(rows/2)*r},
+                v: 1,
+                cage: null,
+                door: null,
+                list: []
+            };
+
+
+            // grid code
+            function getCell (x, y, grid) {
+                //console.log(x,y,fl(y/r),fl(x/r), grid);
+                return grid[fl(y/r)][fl(x/r)]
+            }
+            function fillCell (x, y, color, grid, ctx) {
+                const c = getCell(x, y, grid);
+                ctx.fillStyle = color;
+                ctx.fillRect(c.x, c.y, r, r);
+            }
+            async function grid (columns, rows, resolution) {
+                let     mat = [];
+                const   c = resolution;
+                for (let i=0; i<rows; i++) {
+                    row = [];
+                    for (let j=0; j<columns; j++) {
+                        row.push({
+                            x:j*c,
+                            y:i*c,
+                            rigid:0
+                        })
+                    } 
+                    mat.push(row)
+                } 
+                return mat;
+            }
+            function incrementCoord (x, y, d, i) {
+                [xn,yn]=[x,y]
+                if (d == 'r') {
+                    xn += i
+                } else if (d == 'l') {
+                    xn -= i
+                } else if (d == 'u') {
+                    yn -= i
+                } else if (d == 'd') {
+                    yn += i
+                } return [xn,yn]
+            }
+            function isInCage (x, y) {
+                const g = ghost;
+                if (x<g.cage[0][0]||x>g.cage[0][1]||y<g.cage[1][0]||y>g.cage[1][1]) {
+                    return false
+                } return true
+            }
+            function isRigid (x, y, grid) {
+                return getCell(x, y, grid).rigid
+            }
+            async function isSpaceForWallBlock (x, y, grid) {            
+                for (i of [-1,0,1]) {
+                    for (j of [-1,0,1]) {
+                        const [xn,yn] = [x+j*r,y+i*r];
+                        if (isRigid(xn, yn, grid)) {
+                            return false
+                        }
+                    }
+                }
+                return true
+            }
+            async function isSpaceToContinueWall (x, y, d, grid) {
+                const r = grid[0][1].x - grid[0][0].x; 
+                const [xn,yn] = incrementCoord(x,y,d,r);
+                for (let i of [-1,0,1]) {
+                    for (let j of [-1,0,1]) {
+                        const [xn,yn] = [x+j*r,y+i*r];
+                        if (yn==y||xn==x){continue}
+                        if (isRigid(xn,yn,grid)) {
+                            return false
+                        }
+                    }
+                }
+                return true
+            }
+            async function setWallBlock (ctx, col, row, res, grid, color, rigid=1) {
+                fillCell(col*res, row*res, color, grid, ctx);
+                grid[row][col].rigid = rigid;
+            }
+            
+            // maze code (with grid code dependency)
+            async function maze (grid, ctx, color, snakes=100, length=100, gaprate=0) {
+                
+                const   g = grid;
+                const   res = g[0][1].x - g[0][0].x,
+                        col = g[0].length,
+                        row = g.length;
+
+                ctx.fillStyle = color;
+                
+                // create outter frame
+                for (let i=0; i<rows; i++) {
+                    await setWallBlock(ctx, 0, i, res, g, color);
+                    await setWallBlock(ctx, col-1, i, res, g, color)
+                }
+                for (let i=0; i<col; i++) {
+                    await setWallBlock(ctx, i, 0, res, g, color);
+                    await setWallBlock(ctx, i, row-1, res, g, color)
+                }
+
+                // place the cage
+                dim = [];
+                for (ind of [0,1]) {
+                    d = [col, row][ind]
+                    if (d % 2 == 0){
+                        dim[ind] = 4
+                    } else {
+                        dim[ind] = 3
+                    }
+                }
+                if (col>row){dim[1]--}
+                
+                start = [fl((col-dim[0])/2), fl((row-dim[1])/2)];
+                await setWallBlock(ctx, start[0], start[1], res, g, color)
+                for (let x = 0; x < dim[0]+1; x++) {
+                    await setWallBlock(ctx, start[0]+x, start[1], res, g, color);
+                    await setWallBlock(ctx, start[0]+x, start[1]+dim[1], res, g, color);
+                    
+                } 
+                for (let y = 0; y < dim[1]; y++) {
+                    await setWallBlock(ctx, start[0], start[1]+y, res, g, color);
+                    await setWallBlock(ctx, start[0]+dim[0], start[1]+y, res, g, color);
+                }
+                ghost.cage = [[start[0],start[0]+dim[0]],[start[1],start[1]+dim[1]]];
+
+                // install cage door
+                ghost.door = {col: fl(start[0]+dim[0]/2), row: fl(start[1])} 
+                await setWallBlock(ctx, ghost.door.col, ghost.door.row, res, g, retroBg);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(ghost.door.col*res, ghost.door.row*res+.4*res, res, .2*res);
+
+                // fill internal space with snake method
+                let p = {r:2,c:2},
+                    br = 0;
+                for (let i = 0; i < snakes; i++) {
+
+                    // find new position, if search takes to long it ran out of space, then return
+                    const lim = row*col*100;
+                    for (let z = 0; z < lim; z++) {
+                        // sample new point
+                        const [c,r] = [fl(u()*(col-2))+1, fl(u()*(row-2))+1];
+                        const [x,y] = [c*res,r*res];
+                        if (!isInCage(x,y) && await isSpaceForWallBlock(x,y,g)) {
+                            p.c = c;
+                            p.r = r;
+                            break
+                        }
+                        if (z == lim-1) {
+                            br = 1;
+                            break
+                        }
+                    } 
+                    if (br) {break}
+                    
+                    // fill starting point
+                    await setWallBlock(ctx, p.c, p.r, res, g, color)
+                    
+                    v = '', v_old = '', p_old = [];
+                    count = 0;
+                    for (let i=0; i<length; i++) {
+
+                        // check directions
+                        d=[];
+                        for (let c of ['l', 'r', 'u', 'd']) {
+                            if (await isSpaceToContinueWall(p.c*res, p.r*res, c, g)) {
+                                d.push(c)
+                            }
+                        }
+
+                        // throw a die with geom. decreasing probability to keep the same direction
+                        if (!(d.includes(v) && u() < 1/(1+count))) {
+                            v = d[fl(u()*d.length)]
+                            count = 0
+                        }
+
+                        // terminate snake if no direction is left
+                        if (!d.length) {break}
+
+                        // adjust position
+                        [x_override, y_override] = incrementCoord(p.c*r, p.r*r, v, 1)
+                        p.c = fl(x_override/r);
+                        p.r = fl(y_override/r);
+                        console.log(p.c,p.r)
+
+                        // increment the length
+                        count++
+
+                        // set wall at former coord if direction hasn't chagned to leave sometimes a gap
+                        if (v == v_old && u() < gaprate) {
+                            await setWallBlock(ctx, p_old[0], p_old[1], res, g, retroBg, 0)
+                        }
+                        await setWallBlock(ctx, p.c, p.r, res, g, color)
+
+                        v_old = v;
+                        p_old = [p.c, p.r];
+                        //await sl(500)
+                    }
+                }
+            }
+            
+
+            // pac-man code
+            function bindKeyBoard (pacManObj) {
+                document.addEventListener('keydown', (event) => {
+                    var k = event.key, d;
+                    if (k == 'w' || k == 'ArrowUp') {d = 'u'} 
+                    else if (k == 'a' || k == 'ArrowLeft') {d = 'l'} 
+                    else if (k == 's' || k == 'ArrowDown') {d = 'd'} 
+                    else if (k == 'd' || k == 'ArrowRight') {d = 'r'}
+                    pacManObj.d = d
+                }, false);
+            }
+            
+            // ghost code
+            function initGhost (x, y, color) {
+                ghost.list.push({
+                    p: {
+                        x: x,
+                        y: y
+                    },
+                    c: color,
+                    d: '',          // direction
+                    s: 0            // steps
+                })
+            }
+
+
+
+
+
+            /* -- instantiate -- */
+
+            // load all ghosts to cage
+            for (c of ['red', 'cyan', 'orange', 'pink']) {
+                initGhost(ghost.spawn.x+r, ghost.spawn.y+r, c)
+            }
+
+            // instantiate grid
+            const _grid = await grid(columns, rows, r);
+
+            // initialize maze on background layer
+            const backgroundCtx = layers[1].ctx;
+            await maze(_grid, backgroundCtx, wallColor, snakes=30, length=100, gaprate=mazeWallGapRate);
+
+            // bind keys to pacman
+            bindKeyBoard(pac)
+            
+
+
+        })();
+        
+
+    </script>
+
+</body>
+
+</html>
