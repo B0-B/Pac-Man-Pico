@@ -10,12 +10,15 @@
             // graphics
             const   height = 480,
                     width = 720,
-                    mazeWallGapRate = 0.0,
+                    mazeWallGapRate = 0.2,
+                    mazeWallLength = 100,
+                    mazeWallNumber = 100,
                     resolution = 40,
                     wallColor = '#1b0f9d',
                     retroBg = '#121212',
                     maxFrameRate = 60,
-                    increments = 2;
+                    increments = 2,
+                    pacVelocity = .5; // px/ms
 
             // general
             function u(){return Math.random()}
@@ -74,7 +77,7 @@
             /* PacMan data */
             var pac = {
                 p: {x:r,y:r},
-                v: 100,               // velocity in px/s
+                v: pacVelocity,               // velocity in px/s
                 d: 'r',
                 tol: .45 * r,       // tolerance spatial object extension
                 mouth: [.2,.5,.8,.9,.8,.5,.2,0],
@@ -89,7 +92,7 @@
                 // main ghost object
                 back: {'l':'r','r':'l','u':'d','d':'u'},
                 spawn: {x: fl(columns/2)*r, y: fl(rows/2)*r},
-                v: 1,
+                v: pacVelocity,
                 cage: null,
                 door: null,
                 list: []
@@ -180,20 +183,21 @@
             // maze code (with grid code dependency)
             async function canMoveInDir (x, y, d, grid, inc=1) {
                 //var [xn,yn] = incrementCoord(x,y,d,inc);
-                bias = 0.8 * r
-                b = .2 * r
+                bias = 0.1;
+                b1 = (1-bias)*r;
+                b2 = bias*r;
                 if (d == 'r') {
-                    p1 = incrementCoord(x+r,y+b,d,inc);
-                    p2 = incrementCoord(x+r,y+bias,d,inc);
+                    p1 = incrementCoord(x+r,y+b2,d,inc);
+                    p2 = incrementCoord(x+r,y+b1,d,inc);
                 } else if (d == 'd') {
-                    p1 = incrementCoord(x+b,y+r,d,inc);
-                    p2 = incrementCoord(x+bias,y+r,d,inc);
+                    p1 = incrementCoord(x+b2,y+r,d,inc);
+                    p2 = incrementCoord(x+b1,y+r,d,inc);
                 } else if (d == 'l') {
-                    p1 = incrementCoord(x,y+b,d,inc);
-                    p2 = incrementCoord(x,y+bias,d,inc);
+                    p1 = incrementCoord(x,y+b2,d,inc);
+                    p2 = incrementCoord(x,y+b1,d,inc);
                 } else if (d == 'u') {
-                    p1 = incrementCoord(x+b,y,d,inc);
-                    p2 = incrementCoord(x+bias,y,d,inc);
+                    p1 = incrementCoord(x+b2,y,d,inc);
+                    p2 = incrementCoord(x+b1,y,d,inc);
                 }
                 //console.log('rigid',isRigid(xn,yn,grid))
                 return !isRigid(p1[0],p1[1],grid) && !isRigid(p2[0],p2[1],grid)
@@ -377,35 +381,42 @@
                 pac.steps++
             }
             async function movePacManContinuously (grid) {
-                const dir = pac.d;
+                var dir = pac.d;
                 while (dir == pac.d) {
-                    if (await canMoveInDir(pac.p.x, pac.p.y, pac.d, grid, increments)) {
-                        movePacMan ()
-                    } else {
+                    if (pac.reserve != '' && await canMoveInDir(pac.p.x, pac.p.y, pac.reserve, grid, increments)) {
+                        pac.d = pac.reserve;
+                        dir = pac.d;
+                        pac.reserve = '';
+                    } else if (!(await canMoveInDir(pac.p.x, pac.p.y, pac.d, grid, increments))) {
                         return
                     }
-                    await sl(.5)
+                    movePacMan ()
+                    await sl(increments/pac.v)
                 }
             }
             function bindKeyBoard (pacManObj, grid) {
                 document.addEventListener('keydown', async(event) => {
                     var k = event.key, d;
-                    console.log(k)
                     if ( k == 'w' || k == 'ArrowUp' ) {d = 'u'} 
                     else if ( k == 'a' || k == 'ArrowLeft' ) {d = 'l'} 
                     else if ( k == 's' || k == 'ArrowDown' ) {d = 'd'} 
                     else if ( k == 'd' || k == 'ArrowRight' ) {d = 'r'}
-                    if (await canMoveInDir(pacManObj.p.x, pacManObj.p.y, d, grid, increments) && pacManObj.d != d) {
+                    if (d == pacManObj.d) {
+                        //
+                    } else if (await canMoveInDir(pacManObj.p.x, pacManObj.p.y, d, grid, increments) && pacManObj.d != d) {
                         pacManObj.d = d;
                         movePacManContinuously(grid);
-                    } else {
+                    } else if (await canMoveInDir(pacManObj.p.x, pacManObj.p.y, pacManObj.reserve, grid, increments) && pacManObj.d != pacManObj.reserve) {
+                        pacManObj.d = pacManObj.reserve;
+                        pacManObj.reserve = '';
+                        movePacManContinuously(grid);
+                    } else if (pacManObj.d != d) {
                         pacManObj.reserve = d;
                     }
                     
                 }, false);
                 document.addEventListener('keyup', (event) => {
                     pacManObj.reserve = '';
-                    
                 }, false);
             }
             
@@ -491,7 +502,7 @@
             const _grid = await grid(columns, rows, r);
 
             // initialize maze on background layer
-            await maze(_grid, staticCtx, wallColor, snakes=30, length=12, gaprate=0.1);
+            await maze(_grid, staticCtx, wallColor, snakes=mazeWallNumber, length=mazeWallLength, gaprate=0.1);
 
             // bind keys to pacman
             bindKeyBoard(pac, _grid)
