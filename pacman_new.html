@@ -26,14 +26,14 @@
             body.style.margin = 0;
             body.style.overflow = 'hidden';
 
-            // create canvas layers
+            //  canvas
+            // create layers
             // Layer 1: Background Layer
             // Layer 2: Dynamic Layer
             const   r = resolution;
             const   columns = fl(width/r);
             const   rows = fl(height/r);
             var layers = [];
-            
             for (i of [1,2]) {
                 const el = document.createElement('canvas');
                 const obj = {
@@ -57,6 +57,18 @@
                 body.prepend(el);
                 layers.push(obj);
             }
+            function canvasOffset (canvas) {
+                return [canvas.offsetLeft + canvas.clientLeft, canvas.offsetTop + canvas.clientTop]
+            }
+            function bindMouseToCanvas (canvas, grid) {
+                const [x_off,y_off] = canvasOffset (canvas);
+                canvas.addEventListener('click', function(event) {
+                    const   x = event.pageX - x_off,
+                            y = event.pageY - y_off;
+                    fillCell(x, y, 'yellow', grid, canvas.getContext('2d'))
+                    console.log(getCell(x,y,grid))
+                }, false);
+            }
             
             /* PacMan data */
             var pac = {
@@ -74,7 +86,7 @@
             var ghost = {
                 // main ghost object
                 back: {'l':'r','r':'l','u':'d','d':'u'},
-                spawn: {x:fl(columns/2)*r,y:fl(rows/2)*r},
+                spawn: {x: fl(columns/2)*r, y: fl(rows/2)*r},
                 v: 1,
                 cage: null,
                 door: null,
@@ -110,7 +122,9 @@
             }
             function incrementCoord (x, y, d, i) {
                 [xn,yn]=[x,y]
-                if (d == 'r') {
+                if (d == '') {
+                    return [x,y]
+                } else if (d == 'r') {
                     xn += i
                 } else if (d == 'l') {
                     xn -= i
@@ -136,23 +150,27 @@
                         if (isRigid(xn, yn, grid)) {
                             return false
                         }
+                        //fillCell(xn, yn, 'yellow', grid, layers[1].ctx)
                     }
                 }
                 return true
             }
             async function isSpaceToContinueWall (x, y, d, grid) {
-                const r = grid[0][1].x - grid[0][0].x; 
                 const [xn,yn] = incrementCoord(x,y,d,r);
                 for (let i of [-1,0,1]) {
                     for (let j of [-1,0,1]) {
-                        const [xn,yn] = [x+j*r,y+i*r];
-                        if (yn==y||xn==x){continue}
-                        if (isRigid(xn,yn,grid)) {
+                        const [xn,yn] = [x+j*r, y+i*r];
+                        if (!(yn+i==y||xn+j==x) && isRigid(xn+j, yn+i, grid)) {
                             return false
                         }
+                        //testing
+                        //fillCell(xn, yn, 'yellow', grid, layers[1].ctx)
                     }
                 }
                 return true
+            }
+            async function isSpaceForWallBlock2 (x,y,grid) {
+                return isSpaceToContinueWall(x,y,'',grid)
             }
             async function setWallBlock (ctx, col, row, res, grid, color, rigid=1) {
                 fillCell(col*res, row*res, color, grid, ctx);
@@ -219,8 +237,8 @@
                     const lim = row*col*100;
                     for (let z = 0; z < lim; z++) {
                         // sample new point
-                        const [c,r] = [fl(u()*(col-2))+1, fl(u()*(row-2))+1];
-                        const [x,y] = [c*res,r*res];
+                        const [c,r] = [fl(u()*(col-4))+2, fl(u()*(row-4))+2];
+                        const [x,y] = [c*res, r*res];
                         if (!isInCage(x,y) && await isSpaceForWallBlock(x,y,g)) {
                             p.c = c;
                             p.r = r;
@@ -241,18 +259,22 @@
                     for (let i=0; i<length; i++) {
 
                         // check directions
-                        d=[];
-                        for (let c of ['l', 'r', 'u', 'd']) {
-                            if (await isSpaceToContinueWall(p.c*res, p.r*res, c, g)) {
-                                d.push(c)
+                        let d = [];
+                        for (let direction of ['l', 'r', 'u', 'd']) {
+                            if (await isSpaceToContinueWall(p.c*r, p.r*r, direction, g)) {
+                                d.push(direction)
                             }
                         }
+                        console.log('directions', d);
+                        
 
                         // throw a die with geom. decreasing probability to keep the same direction
                         if (!(d.includes(v) && u() < 1/(1+count))) {
                             v = d[fl(u()*d.length)]
                             count = 0
                         }
+
+                        //test = await isSpaceToContinueWall(p.c*res, p.r*res, v, g)
 
                         // terminate snake if no direction is left
                         if (!d.length) {break}
@@ -261,20 +283,20 @@
                         [x_override, y_override] = incrementCoord(p.c*r, p.r*r, v, 1)
                         p.c = fl(x_override/r);
                         p.r = fl(y_override/r);
-                        console.log(p.c,p.r)
 
                         // increment the length
-                        count++
+                        count++;
 
                         // set wall at former coord if direction hasn't chagned to leave sometimes a gap
                         if (v == v_old && u() < gaprate) {
                             await setWallBlock(ctx, p_old[0], p_old[1], res, g, retroBg, 0)
                         }
                         await setWallBlock(ctx, p.c, p.r, res, g, color)
+                        //console.log('test', p.c, p.r, v, test)
 
                         v_old = v;
                         p_old = [p.c, p.r];
-                        //await sl(500)
+                        //await sl(3000)
                     }
                 }
             }
@@ -284,10 +306,10 @@
             function bindKeyBoard (pacManObj) {
                 document.addEventListener('keydown', (event) => {
                     var k = event.key, d;
-                    if (k == 'w' || k == 'ArrowUp') {d = 'u'} 
-                    else if (k == 'a' || k == 'ArrowLeft') {d = 'l'} 
-                    else if (k == 's' || k == 'ArrowDown') {d = 'd'} 
-                    else if (k == 'd' || k == 'ArrowRight') {d = 'r'}
+                    if ( k == 'w' || k == 'ArrowUp' ) {d = 'u'} 
+                    else if ( k == 'a' || k == 'ArrowLeft' ) {d = 'l'} 
+                    else if ( k == 's' || k == 'ArrowDown' ) {d = 'd'} 
+                    else if ( k == 'd' || k == 'ArrowRight' ) {d = 'r'}
                     pacManObj.d = d
                 }, false);
             }
@@ -326,6 +348,8 @@
             // bind keys to pacman
             bindKeyBoard(pac)
             
+            // bind mouse to canvas
+            bindMouseToCanvas(layers[1].canvas, _grid)
 
 
         })();
