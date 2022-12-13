@@ -8,8 +8,8 @@
         (async() => {
 
             // graphics
-            const   height = 480,
-                    width = 720,
+            const   height = 680,
+                    width = 960,
                     mazeWallGapRate = 0.2,
                     mazeWallLength = 100,
                     mazeWallNumber = 100,
@@ -19,7 +19,7 @@
                     maxFrameRate = 60,
                     increments = 2,
                     pacVelocity = .5; // px/ms
-
+            
             // general
             function u(){return Math.random()}
             function fl(x){return Math.floor(x)}
@@ -405,10 +405,6 @@
                         //
                     } else if (await canMoveInDir(pacManObj.p.x, pacManObj.p.y, d, grid, increments) && pacManObj.d != d) {
                         pacManObj.d = d;
-                        movePacManContinuously(grid);
-                    } else if (await canMoveInDir(pacManObj.p.x, pacManObj.p.y, pacManObj.reserve, grid, increments) && pacManObj.d != pacManObj.reserve) {
-                        pacManObj.d = pacManObj.reserve;
-                        pacManObj.reserve = '';
                         movePacManContinuously(grid);
                     } else if (pacManObj.d != d) {
                         pacManObj.reserve = d;
