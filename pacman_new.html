@@ -33,7 +33,7 @@
             const   r = resolution;
             const   columns = fl(width/r);
             const   rows = fl(height/r);
-            var layers = [];
+            var layers = {};
             for (i of [1,2]) {
                 const el = document.createElement('canvas');
                 const obj = {
@@ -55,7 +55,7 @@
                 el.style.height = rows * r;
                 el.style.zIndex = `${i}`;
                 body.prepend(el);
-                layers.push(obj);
+                layers[i] = obj;
             }
             function canvasOffset (canvas) {
                 return [canvas.offsetLeft + canvas.clientLeft, canvas.offsetTop + canvas.clientTop]
@@ -72,13 +72,14 @@
             
             /* PacMan data */
             var pac = {
-                p: {x:0,y:0},
+                p: {x:r,y:r},
                 v: 1,               // velocity in px/s
-                d: '',
+                d: 'd',
                 tol: .45 * r,       // tolerance spatial object extension
                 mouth: [.2,.5,.8,.9,.8,.5],
-                phase: {'r': 0, 'u':Math.PI/2, 'l': Math.PI, 'd': 1.5*Math.PI},
-                coins: 0
+                phase: {'r': 0, 'u': 1.5*Math.PI , 'l': Math.PI, 'd': Math.PI/2},
+                coins: 0,
+                steps: 1
             }
 
             /* Ghost data */
@@ -168,9 +169,6 @@
                     }
                 }
                 return true
-            }
-            async function isSpaceForWallBlock2 (x,y,grid) {
-                return isSpaceToContinueWall(x,y,'',grid)
             }
             async function setWallBlock (ctx, col, row, res, grid, color, rigid=1) {
                 fillCell(col*res, row*res, color, grid, ctx);
@@ -265,16 +263,12 @@
                                 d.push(direction)
                             }
                         }
-                        console.log('directions', d);
                         
-
                         // throw a die with geom. decreasing probability to keep the same direction
                         if (!(d.includes(v) && u() < 1/(1+count))) {
                             v = d[fl(u()*d.length)]
                             count = 0
                         }
-
-                        //test = await isSpaceToContinueWall(p.c*res, p.r*res, v, g)
 
                         // terminate snake if no direction is left
                         if (!d.length) {break}
@@ -291,21 +285,57 @@
                         if (v == v_old && u() < gaprate) {
                             await setWallBlock(ctx, p_old[0], p_old[1], res, g, retroBg, 0)
                         }
-                        await setWallBlock(ctx, p.c, p.r, res, g, color)
-                        //console.log('test', p.c, p.r, v, test)
+                        await setWallBlock(ctx, p.c, p.r, res, g, color);
 
                         v_old = v;
                         p_old = [p.c, p.r];
-                        //await sl(3000)
+                    
                     }
                 }
+            
+                // fill free space
+                count = 0;
+                for (let repeat = 0; repeat < 10; repeat++) {
+                    for (let i = 3; i < row; i++) {
+                        for (let j = 3; j < col; j++) {
+                            const cell = g[i][j];
+                            if (isInCage(cell.x, cell.y)) {continue}
+                            if (!cell.rigid) {
+                                for (let [a,b] of [
+                                    [1,0],
+                                    [1,1],
+                                    [0,1],
+                                    [-1,1],
+                                    [-1,0],
+                                    [-1,-1],
+                                    [0,-1],
+                                    [1,-1]
+                                ]) {
+                                    if (g[i+a][j+b].rigid) {
+                                        count++
+                                    }
+                                    if (count > 1) {
+                                        break
+                                    }
+                                }
+                                if (count == 1) {
+                                    await setWallBlock(ctx, j, i, res, g, color);
+                                    
+                                }
+                                count = 0;
+                            }
+                        }
+                    }
+                }
+                
+                
             }
             
-
             // pac-man code
             function bindKeyBoard (pacManObj) {
                 document.addEventListener('keydown', (event) => {
                     var k = event.key, d;
+                    console.log(k)
                     if ( k == 'w' || k == 'ArrowUp' ) {d = 'u'} 
                     else if ( k == 'a' || k == 'ArrowLeft' ) {d = 'l'} 
                     else if ( k == 's' || k == 'ArrowDown' ) {d = 'd'} 
@@ -313,7 +343,25 @@
                     pacManObj.d = d
                 }, false);
             }
-            
+            async function drawPacMan (ctx) {
+                const rad = fl(r/2);
+                const c = [pac.p.x+rad, pac.p.y+rad];
+                const mouth_state = pac.mouth[pac.steps % pac.mouth.length];
+                ctx.save()
+                ctx.beginPath();
+                ctx.translate(c[0], c[1])
+                ctx.rotate(pac.phase[pac.d])
+                ctx.moveTo(0, 0)
+                ctx.arc(0, 0, rad, mouth_state, 2*Math.PI-mouth_state);
+                ctx.fillStyle = ctx.strokeStyle = '#d9e312';
+                ctx.lineTo(0, 0);
+                ctx.lineTo(rad*Math.cos(mouth_state),rad*Math.sin(mouth_state));
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+
+            }
+
             // ghost code
             function initGhost (x, y, color) {
                 ghost.list.push({
@@ -326,12 +374,66 @@
                     s: 0            // steps
                 })
             }
+            async function drawGhost (ghost, ctx) {
+                const   rad = fl(resolution/2);
+                const c = [ghost.x+rad, ghost.y+rad];
+                ctx.beginPath();
+                ctx.arc(c[0], c[1], rad, -Math.PI, 0);
+                ctx.fillStyle = ctx.strokeStyle = ghost.c;
+                ctx.fillRect(ghost.x, ghost.y+rad, resolution, fl(rad/2));
+                for ([dx,dy] of [[2,2],[1.75,1.75],[1.5,2],[1.25,1.75],[1,2],[.75,1.75],[.5,2],[.25,1.75],[0,2],[0,1.75]]) {
+                    ctx.lineTo(ghost.x+dx*rad, ghost.y+dy*rad);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                for (s of [-1,1]) {
+                    ctx.arc(c[0]+s*fl(rad/2.3), c[1]-fl(rad/3.5), fl(rad/3), 0, 2*Math.PI);
+                    ctx.fillStyle = '#fff';
+                    ctx.fill();    
+                }
+                ctx.closePath();
+                
+                // eyes
+                ctx.fillStyle = retroBg;
+                ctx.beginPath();
+                if (ghost.d == 'u') {
+                    bias = [0,-.2]
+                } else if (ghost.d == 'd') {
+                    bias = [0,.2]
+                } else if (ghost.d == 'l') {
+                    bias = [-.2,0]
+                } else if (ghost.d == 'r') {
+                    bias = [.2,0]
+                } else {
+                    bias = [0,0]
+                }
+                ctx.arc(c[0]+fl(rad/2.3)+bias[0]*rad, c[1]-fl(rad/3.5)+bias[1]*rad, fl(rad/4), 0, 2*Math.PI);
+                ctx.arc(c[0]-fl(rad/2.3)+bias[0]*rad, c[1]-fl(rad/3.5)+bias[1]*rad, fl(rad/4), 0, 2*Math.PI);
+                ctx.fill();
+                ctx.closePath();
+            }
 
-
-
-
+            // render code
+            async function renderEngine (ctx) {
+                while (true) {
+                    try {
+                        ctx.clearRect(0,0,width,height);
+                        await drawPacMan(ctx);
+                        for (g of ghost.list) {
+                            await drawGhost(g, ctx)
+                        }
+                    } catch (error) {
+                        console.error(error)
+                    } finally {
+                        await sl(1000/maxFrameRate)
+                    }
+                }
+            }
 
             /* -- instantiate -- */
+            const staticCtx = layers[1].ctx;
+            const dynamicCtx = layers[2].ctx;
 
             // load all ghosts to cage
             for (c of ['red', 'cyan', 'orange', 'pink']) {
@@ -342,15 +444,16 @@
             const _grid = await grid(columns, rows, r);
 
             // initialize maze on background layer
-            const backgroundCtx = layers[1].ctx;
-            await maze(_grid, backgroundCtx, wallColor, snakes=100, length=100, gaprate=mazeWallGapRate);
+            await maze(_grid, staticCtx, wallColor, snakes=30, length=12, gaprate=0.1);
 
             // bind keys to pacman
             bindKeyBoard(pac)
             
             // bind mouse to canvas
-            bindMouseToCanvas(layers[1].canvas, _grid)
+            //bindMouseToCanvas(layers[1].canvas, _grid)
 
+            // ignite asynchronous render engine
+            renderEngine(dynamicCtx)
 
         })();
         
