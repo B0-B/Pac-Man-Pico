@@ -14,7 +14,8 @@
                     resolution = 40,
                     wallColor = '#1b0f9d',
                     retroBg = '#121212',
-                    maxFrameRate = 30;
+                    maxFrameRate = 60,
+                    increments = 2;
 
             // general
             function u(){return Math.random()}
@@ -73,10 +74,10 @@
             /* PacMan data */
             var pac = {
                 p: {x:r,y:r},
-                v: 1,               // velocity in px/s
-                d: 'd',
+                v: 100,               // velocity in px/s
+                d: 'r',
                 tol: .45 * r,       // tolerance spatial object extension
-                mouth: [.2,.5,.8,.9,.8,.5],
+                mouth: [.2,.5,.8,.9,.8,.5,.2,0],
                 phase: {'r': 0, 'u': 1.5*Math.PI , 'l': Math.PI, 'd': Math.PI/2},
                 coins: 0,
                 steps: 1
@@ -175,7 +176,28 @@
                 grid[row][col].rigid = rigid;
             }
             
+
             // maze code (with grid code dependency)
+            async function canMoveInDir (x, y, d, grid, inc=1) {
+                //var [xn,yn] = incrementCoord(x,y,d,inc);
+                bias = 0.8 * r
+                b = .2 * r
+                if (d == 'r') {
+                    p1 = incrementCoord(x+r,y+b,d,inc);
+                    p2 = incrementCoord(x+r,y+bias,d,inc);
+                } else if (d == 'd') {
+                    p1 = incrementCoord(x+b,y+r,d,inc);
+                    p2 = incrementCoord(x+bias,y+r,d,inc);
+                } else if (d == 'l') {
+                    p1 = incrementCoord(x,y+b,d,inc);
+                    p2 = incrementCoord(x,y+bias,d,inc);
+                } else if (d == 'u') {
+                    p1 = incrementCoord(x+b,y,d,inc);
+                    p2 = incrementCoord(x+bias,y,d,inc);
+                }
+                //console.log('rigid',isRigid(xn,yn,grid))
+                return !isRigid(p1[0],p1[1],grid) && !isRigid(p2[0],p2[1],grid)
+            }
             async function maze (grid, ctx, color, snakes=100, length=100, gaprate=0) {
                 
                 const   g = grid;
@@ -332,21 +354,10 @@
             }
             
             // pac-man code
-            function bindKeyBoard (pacManObj) {
-                document.addEventListener('keydown', (event) => {
-                    var k = event.key, d;
-                    console.log(k)
-                    if ( k == 'w' || k == 'ArrowUp' ) {d = 'u'} 
-                    else if ( k == 'a' || k == 'ArrowLeft' ) {d = 'l'} 
-                    else if ( k == 's' || k == 'ArrowDown' ) {d = 'd'} 
-                    else if ( k == 'd' || k == 'ArrowRight' ) {d = 'r'}
-                    pacManObj.d = d
-                }, false);
-            }
             async function drawPacMan (ctx) {
                 const rad = fl(r/2);
                 const c = [pac.p.x+rad, pac.p.y+rad];
-                const mouth_state = pac.mouth[pac.steps % pac.mouth.length];
+                const mouth_state = pac.mouth[fl(2*pac.steps*pac.mouth.length/r) % pac.mouth.length];
                 ctx.save()
                 ctx.beginPath();
                 ctx.translate(c[0], c[1])
@@ -361,7 +372,43 @@
                 ctx.restore();
 
             }
-
+            async function movePacMan () {
+                [pac.p.x, pac.p.y]=incrementCoord(pac.p.x, pac.p.y, pac.d, increments);
+                pac.steps++
+            }
+            async function movePacManContinuously (grid) {
+                const dir = pac.d;
+                while (dir == pac.d) {
+                    if (await canMoveInDir(pac.p.x, pac.p.y, pac.d, grid, increments)) {
+                        movePacMan ()
+                    } else {
+                        return
+                    }
+                    await sl(.5)
+                }
+            }
+            function bindKeyBoard (pacManObj, grid) {
+                document.addEventListener('keydown', async(event) => {
+                    var k = event.key, d;
+                    console.log(k)
+                    if ( k == 'w' || k == 'ArrowUp' ) {d = 'u'} 
+                    else if ( k == 'a' || k == 'ArrowLeft' ) {d = 'l'} 
+                    else if ( k == 's' || k == 'ArrowDown' ) {d = 'd'} 
+                    else if ( k == 'd' || k == 'ArrowRight' ) {d = 'r'}
+                    if (await canMoveInDir(pacManObj.p.x, pacManObj.p.y, d, grid, increments) && pacManObj.d != d) {
+                        pacManObj.d = d;
+                        movePacManContinuously(grid);
+                    } else {
+                        pacManObj.reserve = d;
+                    }
+                    
+                }, false);
+                document.addEventListener('keyup', (event) => {
+                    pacManObj.reserve = '';
+                    
+                }, false);
+            }
+            
             // ghost code
             function initGhost (x, y, color) {
                 ghost.list.push({
@@ -416,9 +463,9 @@
 
             // render code
             async function renderEngine (ctx) {
-                while (true) {
+                while (1) {
                     try {
-                        ctx.clearRect(0,0,width,height);
+                        ctx.clearRect(0, 0, width, height);
                         await drawPacMan(ctx);
                         for (g of ghost.list) {
                             await drawGhost(g, ctx)
@@ -447,10 +494,7 @@
             await maze(_grid, staticCtx, wallColor, snakes=30, length=12, gaprate=0.1);
 
             // bind keys to pacman
-            bindKeyBoard(pac)
-            
-            // bind mouse to canvas
-            //bindMouseToCanvas(layers[1].canvas, _grid)
+            bindKeyBoard(pac, _grid)
 
             // ignite asynchronous render engine
             renderEngine(dynamicCtx)
