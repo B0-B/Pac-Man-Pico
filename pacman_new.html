@@ -10,7 +10,7 @@
             // graphics
             const   height = 480,
                     width = 720,
-                    mazeWallGapRate = 0.1,
+                    mazeWallGapRate = 0.0,
                     resolution = 40,
                     wallColor = '#1b0f9d',
                     retroBg = '#121212',
@@ -159,8 +159,8 @@
                 const [xn,yn] = incrementCoord(x,y,d,r);
                 for (let i of [-1,0,1]) {
                     for (let j of [-1,0,1]) {
-                        const [xn,yn] = [x+j*r, y+i*r];
-                        if (!(yn+i==y||xn+j==x) && isRigid(xn+j, yn+i, grid)) {
+                        const [x_t,y_t] = [xn+j*r, yn+i*r];
+                        if (!(y_t==y||x_t==x) && isRigid(x_t, y_t, grid)) {
                             return false
                         }
                         //testing
@@ -343,7 +343,7 @@
 
             // initialize maze on background layer
             const backgroundCtx = layers[1].ctx;
-            await maze(_grid, backgroundCtx, wallColor, snakes=30, length=100, gaprate=mazeWallGapRate);
+            await maze(_grid, backgroundCtx, wallColor, snakes=100, length=100, gaprate=mazeWallGapRate);
 
             // bind keys to pacman
             bindKeyBoard(pac)
