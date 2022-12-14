@@ -19,7 +19,7 @@
                     maxFrameRate = 60,
                     increments = 2,
                     pacVelocity = .5; // px/ms
-            
+
             // general
             function u(){return Math.random()}
             function fl(x){return Math.floor(x)}
@@ -97,7 +97,6 @@
                 door: null,
                 list: []
             };
-
 
             // grid code
             function getCell (x, y, grid) {
@@ -179,7 +178,6 @@
                 grid[row][col].rigid = rigid;
             }
             
-
             // maze code (with grid code dependency)
             async function canMoveInDir (x, y, d, grid, inc=1) {
                 //var [xn,yn] = incrementCoord(x,y,d,inc);
@@ -231,7 +229,7 @@
                         dim[ind] = 3
                     }
                 }
-                if (col>row){dim[1]--}
+                if (col>row && dim[1]>4){dim[1]--}
                 
                 start = [fl((col-dim[0])/2), fl((row-dim[1])/2)];
                 await setWallBlock(ctx, start[0], start[1], res, g, color)
@@ -424,19 +422,20 @@
                         y: y
                     },
                     c: color,
-                    d: '',          // direction
-                    s: 0            // steps
+                    d: 'r',          // direction
+                    s: 0,           // steps
+                    r: 1          // randomness
                 })
             }
-            async function drawGhost (ghost, ctx) {
+            async function drawGhost (_ghost, ctx) {
                 const   rad = fl(resolution/2);
-                const c = [ghost.x+rad, ghost.y+rad];
+                const c = [_ghost.p.x+rad, _ghost.p.y+rad];
                 ctx.beginPath();
                 ctx.arc(c[0], c[1], rad, -Math.PI, 0);
-                ctx.fillStyle = ctx.strokeStyle = ghost.c;
-                ctx.fillRect(ghost.x, ghost.y+rad, resolution, fl(rad/2));
+                ctx.fillStyle = ctx.strokeStyle = _ghost.c;
+                ctx.fillRect(_ghost.p.x, _ghost.p.y+rad, resolution, fl(rad/2));
                 for ([dx,dy] of [[2,2],[1.75,1.75],[1.5,2],[1.25,1.75],[1,2],[.75,1.75],[.5,2],[.25,1.75],[0,2],[0,1.75]]) {
-                    ctx.lineTo(ghost.x+dx*rad, ghost.y+dy*rad);
+                    ctx.lineTo(_ghost.p.x+dx*rad, _ghost.p.y+dy*rad);
                 }
                 ctx.closePath();
                 ctx.fill();
@@ -451,13 +450,13 @@
                 // eyes
                 ctx.fillStyle = retroBg;
                 ctx.beginPath();
-                if (ghost.d == 'u') {
+                if (_ghost.d == 'u') {
                     bias = [0,-.2]
-                } else if (ghost.d == 'd') {
+                } else if (_ghost.d == 'd') {
                     bias = [0,.2]
-                } else if (ghost.d == 'l') {
+                } else if (_ghost.d == 'l') {
                     bias = [-.2,0]
-                } else if (ghost.d == 'r') {
+                } else if (_ghost.d == 'r') {
                     bias = [.2,0]
                 } else {
                     bias = [0,0]
@@ -466,6 +465,70 @@
                 ctx.arc(c[0]-fl(rad/2.3)+bias[0]*rad, c[1]-fl(rad/3.5)+bias[1]*rad, fl(rad/4), 0, 2*Math.PI);
                 ctx.fill();
                 ctx.closePath();
+            }
+            async function move (_ghost, grid) {
+                path = []
+                while (1) {
+
+                    const [x,y] = [_ghost.p.x, _ghost.p.y];
+
+                    // determine all possible directions the ghost can move
+                    // except for the origin direction, which will be removed 
+                    // but only in case this is not the only possibility.
+                    pd = [];
+                    for (d of ['l', 'r', 'u', 'd']) {
+                        if (await canMoveInDir(x,y,d,grid)) {
+                            pd.push(d)
+                        }
+                    }
+                    const backDir = ghost.back[d];
+                    if (pd.length > 1 && pd.includes(backDir)) {
+                        pd.splice(pd.indexOf(ghost.back[d]),1);
+                    }
+
+                    // behave differently depending on position
+                    if (isInCage(x,y)) {
+
+                        _ghost.d = pd[fl(u()*pd.length)];
+                        while (1) {
+                            if (u() < 1-ghost.r/(1+_ghost.s) || !canMoveInDir(_ghost.p.x, _ghost.p.y,_ghost.d,increments)) {
+                                break
+                            } else {
+                                [_ghost.p.x, _ghost.p.y] = incrementCoord(_ghost.p.x, _ghost.p.y,_ghost.d,increments);
+                                _ghost.s++;
+                                await sl(increments/_ghost.v)
+                            }
+                        }
+                        
+
+                    } else {
+
+                        // pick the direction which minimizes distance to pac
+                        min_dir = '', min = 1e10;
+                        for (d of pd) {
+                            const [x0,y0] = incrementCoord(x,y);
+                            if ((pac.p.x-x0)**2+(pac.p.y-y0)**2 < min) {
+                                min_dir = d;
+                            }
+                        }
+
+                        // override ghost data
+                        while (1) {
+                            [_ghost.p.x, _ghost.p.y] = incrementCoord(_ghost.p.x, _ghost.p.y,min_dir,increments);
+                            _ghost.s++;
+                            if (await canMoveInDir(x,y,d,grid)) {
+                                await sl(increments/_ghost.v)
+                            } else {
+                                break
+                            }
+                        }
+
+                    }
+                    
+
+                    
+                    
+                }
             }
 
             // render code
@@ -491,14 +554,20 @@
 
             // load all ghosts to cage
             for (c of ['red', 'cyan', 'orange', 'pink']) {
-                initGhost(ghost.spawn.x+r, ghost.spawn.y+r, c)
+                initGhost(ghost.spawn.x+(u()-.5)*r, ghost.spawn.y+(u()-.5)*r, c)
             }
+
+            
 
             // instantiate grid
             const _grid = await grid(columns, rows, r);
 
             // initialize maze on background layer
             await maze(_grid, staticCtx, wallColor, snakes=mazeWallNumber, length=mazeWallLength, gaprate=0.1);
+
+            for (gs of ghost.list) {
+                move(gs,_grid)
+            }
 
             // bind keys to pacman
             bindKeyBoard(pac, _grid)
