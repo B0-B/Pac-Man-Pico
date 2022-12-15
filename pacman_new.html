@@ -64,15 +64,6 @@
             function canvasOffset (canvas) {
                 return [canvas.offsetLeft + canvas.clientLeft, canvas.offsetTop + canvas.clientTop]
             }
-            function bindMouseToCanvas (canvas, grid) {
-                const [x_off,y_off] = canvasOffset (canvas);
-                canvas.addEventListener('click', function(event) {
-                    const   x = event.pageX - x_off,
-                            y = event.pageY - y_off;
-                    fillCell(x, y, 'yellow', grid, canvas.getContext('2d'))
-                    console.log(getCell(x,y,grid))
-                }, false);
-            }
             
             /* PacMan data */
             var pac = {
@@ -92,10 +83,11 @@
                 // main ghost object
                 back: {'l':'r','r':'l','u':'d','d':'u'},
                 spawn: {x: fl(columns/2)*r, y: fl(rows/2)*r},
-                v: pacVelocity,
+                v: .1,
                 cage: null,
                 door: null,
-                list: []
+                list: [],
+                r: .1
             };
 
             // grid code
@@ -354,7 +346,10 @@
                 
                 
             }
-            
+            function openDoor (grid) {
+                grid[ghost.door.row][ghost.door.col].rigid = 0
+            }
+
             // pac-man code
             async function drawPacMan (ctx) {
                 const rad = fl(r/2);
@@ -466,7 +461,137 @@
                 ctx.fill();
                 ctx.closePath();
             }
-            async function move (_ghost, grid) {
+            async function sampleNewDir (pd, origin) {
+                pd.splice(pd.indexOf(origin),1);
+                return pd[fl(u()*pd.length)]
+            }
+            async function moveGhost (_ghost, grid) {
+
+                /* agent algorithm */
+
+                const G = ghost;
+                const g = _ghost;
+
+                var direction;
+
+                // determine possible directions
+                pd = []; 
+                for (d of ['l','r','u','d']) {
+                    if (await canMoveInDir(g.p.x, g.p.y, d, grid, increments)) {
+                        pd.push(d)
+                    }
+                }
+
+                // determine backward direction
+                const backDir = G.back[g.d];
+
+                // pick direction if there is only one option
+                if (pd.length < 2 ) {direction = pd[0]}
+
+                // acc. to provided randomness, sample a random move sometimes
+                if (pd.length > 2 && u() < G.r) {
+                    g.s = 0;
+                    direction = pd[fl(u()*pd.length)];
+                }
+
+                // case dependent direction and move parameters
+                if (isInCage(g.x, g.y)) {
+
+                    walking_dist = 20
+                    ghost_increment = 2
+
+                    if (!direction) {
+                        
+                        // sample new direction
+                        dist = {'l':.1, 'r':.1, 'u':.7, 'd':.1}
+                        p = dist[direction]
+                        if (!(u()<1/(1+g.s/(2*r))) && u() < p) {
+                            direction = await sampleNewDir(pd, backDir);
+                            g.s = 0;
+                        }
+
+                    }
+                    
+                } 
+
+                // // tries to minimize distance to pac
+                // else if (chase) {
+
+                //     ghost_increment =  4
+                //     walking_dist = 300;
+
+                //     if (u() < 0.1) {
+                //         dist = 1e10;
+                //         if (!direction) {
+                //             for(let d of pd) {
+                //                 [pos_x, pos_y] = increment_in_dir(g.x,g.y,d,inc);
+                //                 console.log(pos_x, pos_y)
+                //                 dtp = dist_to_pac(pos_x, pos_y);
+                //                 if (dtp < dist) {
+                //                     dist = dtp;
+                //                     direction = d
+                //                 }
+                //             }
+                //         }
+                //     }
+                    
+
+                // }
+
+                // // random movement
+                // else {
+
+                //     walking_dist = 200
+                //     ghost_increment = 2
+                    
+                //     if (!direction) {
+
+                //         // sample new direction after a walking distance (on avg.)
+                //         if (!(u()<1/(1+s/walking_dist)) || g.v=='') {
+                            
+                //             // apply new direction
+                //             direction = target_dir;
+                //             g.s=0;
+
+                //         } 
+                //     }
+
+                // }
+
+                // update direction
+                if (direction) {
+                    g.d = direction;
+                }
+                
+                
+                // check if the target coordinate is free, then apply direction
+                [g.p.x, g.p.y] = incrementCoord(g.p.x, g.p.y, g.d, increments)
+                
+                // if (!isRigid(x,y,grid)) {
+                //     g.x = x;
+                //     g.y = y;
+                // } else {
+                //     // if backwards is the longest path always pick it
+                //     if (target_dir == backDir) {
+                //         g.v = backDir
+                //     } 
+                //     // otherwise sample a new non-backward path
+                //     else {
+                //         g.v = sample_new_dir(g, backDir, pd)
+                //     }
+                    
+                // }
+
+                // increment step count
+                g.s++
+            }
+            async function moveGhostContinously (_ghost, grid) {
+                while (1) {
+                    await moveGhost (_ghost, grid);
+                    await sl(increments/ghost.v)
+                }
+            }
+            async function moveGhostOld (_ghost, grid) {
                 path = []
                 while (1) {
 
@@ -531,6 +656,7 @@
                 }
             }
 
+
             // render code
             async function renderEngine (ctx) {
                 while (1) {
@@ -564,9 +690,9 @@
 
             // initialize maze on background layer
             await maze(_grid, staticCtx, wallColor, snakes=mazeWallNumber, length=mazeWallLength, gaprate=0.1);
-
+            openDoor(_grid)
             for (gs of ghost.list) {
-                move(gs,_grid)
+                moveGhostContinously(gs,_grid)
             }
 
             // bind keys to pacman
