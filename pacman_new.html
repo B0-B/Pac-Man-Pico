@@ -105,10 +105,10 @@
                 period: 15,
                 coins: 0,
                 coinPhase: 0,
-                coinColor: ['#d6c78b', '#f2ed5a', '#cbcfc6']
+                coinColor: ['#d6c78b', '#f2ed5a', '#cbcfc6', '#fcffcc']
             }
 
-            // game options and menu
+            // coin code
             function loadCoins (_grid) {
                 for (i = 0; i < _grid.length; i++) {
                     for (j = 0; j < _grid[0].length; j++) {
@@ -118,7 +118,50 @@
                         }
                     }
                 }
+                
             }
+            async function eatCoin (x,y,_grid) {
+                c = getCell(x,y,_grid);
+                if (c.c) {
+                    c.c = 0;
+                    game.coins--;
+                    pac.points+=10;
+                }
+            }
+            async function renderCoins (_grid, ctx) {
+                const rad = r/3/2;
+                const dia = rad*2;
+                const omega = 2*Math.PI*coinRotationRate;
+                const dt = 1/maxFrameRate;
+                const gcl = game.coinColor.length;
+                while (game.isOn) {
+                    await sl(1e3/coinRotationRate)
+                    if(!game.isOn){continue}
+                    for (i = 0; i < _grid.length; i++) {
+                        for (j = 0; j < _grid[0].length; j++) {
+                            const c = _grid[i][j];
+                            if (c.c) {
+                                sine = .5*(Math.sin(game.coinPhase)+1);
+                                [x,y] = [c.x,c.y];
+                                ctx.save();
+                                ctx.beginPath();
+                                ctx.ellipse(100, 100, fl(rad*sine), rad, 0, 0, 2 * Math.PI);
+                                ctx.fillStyle = game.coinColor[fl(sine*gcl)];
+                                
+                                ctx.closePath();
+                                ctx.fill();
+                                ctx.restore();
+                            }
+                        }
+                    }
+                    coinPhase += omega * dt;
+                    coinPhase = coinPhase % (2*Math.PI)
+                } 
+                
+            }
+
+
+            // game options and menu
             async function newGame (_grid) {
 
                 // fill grid with coins 
@@ -156,32 +199,7 @@
                 game.isOn = 0;
                 aw
             }
-            async function eatCoin (x,y,_grid) {
-                c = getCell(x,y,_grid);
-                if (c.c) {
-                    c.c = 0;
-                    game.coins--;
-                    pac.points+=10;
-
-                }
-            }
-            async function renderCoins (_grid, ctx) {
-                const rad = r/3/2;
-                const dia = rad*2;
-                for (i = 0; i < _grid.length; i++) {
-                    for (j = 0; j < _grid[0].length; j++) {
-                        const c = _grid[i][j];
-                        if (c.c) {
-                            [x,y] = [c.x,c.y];
-                            ctx.save();
-                            ctx.beginPath();
-                            ctx.ellipse(100, 100, fl(rad*game.coinPhase), rad, 0, 0, 2 * Math.PI);
-                            ctx.fillStyle = 
-                            ctx.fill();
-                        }
-                    }
-                }
-            } 
+             
 
 
             // grid code
@@ -634,26 +652,30 @@
                     await sl(increments/ghost.v)
                     if (!game.isOn) {continue}
                     await moveGhost (_ghost, grid);
-                    
                 }
             }
             
             // render code
-            async function renderEngine (ctx) {
+            async function renderEngine (dynCtx, interCtx) {
+                
+                // initialize asynchronous coin rendering 
+                // on interactive layer
+                renderCoins(_grid, interCtx);
+
+                // start rendering content on dynamic layer
                 while (1) {
                     try {
-                        
-                        ctx.clearRect(0, 0, width, height);
+                        dynCtx.clearRect(0, 0, width, height);
                         if (pac.show) {
-                            await drawPacMan(ctx);
+                            await drawPacMan(dynCtx);
                         }
                         for (g of ghost.list) {
-                            await drawGhost(g, ctx)
+                            await drawGhost(g, dynCtx)
                         }
                     } catch (error) {
                         console.error(error)
                     } finally {
-                        await sl(1000/maxFrameRate)
+                        await sl(1e3/maxFrameRate)
                     }
                 }
             }
@@ -682,9 +704,9 @@
             bindKeyBoard(pac, _grid);
 
             // ignite asynchronous render engine
-            renderEngine(dynamicCtx);
+            renderEngine(dynamicCtx, interCtx);
             
-
+            // start new game
             newGame(_grid);
             
             
