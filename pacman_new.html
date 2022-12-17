@@ -17,6 +17,7 @@
                     wallColor = '#1b0f9d',
                     retroBg = '#121212',
                     maxFrameRate = 60,
+                    coinRotationRate = 2,
                     increments = 2,
                     pacVelocity = .5; // px/ms
             var     ghostVelocity = .3;
@@ -103,12 +104,14 @@
                 isOn: false,
                 period: 15,
                 coins: 0,
+                coinPhase: 0,
+                coinColor: ['#d6c78b', '#f2ed5a', '#cbcfc6']
             }
 
             // game options and menu
             function loadCoins (_grid) {
                 for (i = 0; i < _grid.length; i++) {
-                    for (j = 0; i < _grid[0].length; i++) {
+                    for (j = 0; j < _grid[0].length; j++) {
                         if (!_grid[i][j].rigid) {
                             _grid[i][j].c = 1;
                             game.coins++
@@ -117,8 +120,15 @@
                 }
             }
             async function newGame (_grid) {
+
+                // fill grid with coins 
+                loadCoins(_grid);
+
+                // switch on the game and give pacman 5 seconds advantage
                 game.isOn = 1;
                 await sl(5e3);
+
+                // wait until ghosts left the cage, and close it
                 openDoor(_grid);
                 allLeft=0;
                 while (!allLeft) {
@@ -131,17 +141,48 @@
                     await sl(10);
                 }
                 openDoor(_grid, 1);
+
+                // iteratively switch between chase and random, raise the velocity
                 while (game.up > 0) {
                     for (let i = 0; i < fl(game.period*1e3/50); i++) {
                         await sl(50);
                         if (!game.up){break}
                     }
                     ghost.chase = !ghost.chase;
-                    ghostVelocity = fl(1.1*ghostVelocity);
+                    ghostVelocity = 1.1*ghostVelocity;
                 }
+
+                // when the loop ends end the game
                 game.isOn = 0;
+                aw
             }
-            
+            async function eatCoin (x,y,_grid) {
+                c = getCell(x,y,_grid);
+                if (c.c) {
+                    c.c = 0;
+                    game.coins--;
+                    pac.points+=10;
+
+                }
+            }
+            async function renderCoins (_grid, ctx) {
+                const rad = r/3/2;
+                const dia = rad*2;
+                for (i = 0; i < _grid.length; i++) {
+                    for (j = 0; j < _grid[0].length; j++) {
+                        const c = _grid[i][j];
+                        if (c.c) {
+                            [x,y] = [c.x,c.y];
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.ellipse(100, 100, fl(rad*game.coinPhase), rad, 0, 0, 2 * Math.PI);
+                            ctx.fillStyle = 
+                            ctx.fill();
+                        }
+                    }
+                }
+            } 
+
 
             // grid code
             function getCell (x, y, grid) {
