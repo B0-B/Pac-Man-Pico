@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en">d
 <head>
 </head>
 <body style="background:#454545">
@@ -83,12 +83,13 @@
             var ghost = {
                 // main ghost object
                 back: {'l':'r','r':'l','u':'d','d':'u'},
-                spawn: {x: fl(columns/2)*r, y: fl(rows/2)*r},
-                v: .1,
+                spawn: {x: fl(columns/2)*r, y: fl(rows/2+1)*r},
+                v: .3,
                 cage: null,
+                chase: false,
                 door: null,
                 list: [],
-                r: .05
+                r: .1
             };
 
             // grid code
@@ -133,9 +134,10 @@
             }
             function isInCage (x, y) {
                 const g = ghost;
-                if (x<g.cage[0][0]||x>g.cage[0][1]||y<g.cage[1][0]||y>g.cage[1][1]) {
+                if (x<g.cage[0][0]*r||x>g.cage[0][1]*r||y<g.cage[1][0]*r||y>g.cage[1][1]*r) {
                     return false
-                } return true
+                } 
+                return true
             }
             function isRigid (x, y, grid) {
                 return getCell(x, y, grid).rigid
@@ -424,6 +426,9 @@
                     r: 1          // randomness
                 })
             }
+            function distToPacMan (x, y) {
+                return ((pac.p.x-x)**2+(pac.p.y-y)**2)
+            }
             async function drawGhost (_ghost, ctx) {
                 const   rad = fl(resolution/2);
                 const c = [_ghost.p.x+rad, _ghost.p.y+rad];
@@ -463,8 +468,7 @@
                 ctx.fill();
                 ctx.closePath();
             }
-            async function sampleNewDir (pd, back) {
-                pd.splice(pd.indexOf(back),1);
+            async function sampleNewDir (pd) {
                 return pd[fl(u()*pd.length)]
             }
             async function moveGhost (_ghost, grid) {
@@ -498,7 +502,6 @@
 
                 // case dependent direction and move parameters
                 if (isInCage(g.p.x, g.p.y)) {
-                    console.log('hit')
                     if (!direction) {
                         
                         // sample new direction
@@ -570,9 +573,87 @@
                 // increment step count
                 g.s++
             }
+            async function moveGhost2 (_ghost, grid) {
+                
+                var direction;
+                const [x, y, g, G, I] = [_ghost.p.x, _ghost.p.y, _ghost, ghost, increments];
+                
+                // determine possible directions, 
+                var pd = []; 
+                for (d of ['l','r','u','d']) {
+                    if (await canMoveInDir(x, y, d, grid, I)) {
+                        pd.push(d)
+                    }
+                }
+
+                // if there is only one option choose it
+                const backDir = G.back[g.d];
+                if (pd.length < 2) {
+                    direction = pd[0]
+                } else {
+                    pd.splice(pd.indexOf(backDir), 1)
+                }
+                
+
+                // run algorithm code if direction is not yet determined
+                if (!direction) {
+
+                    // cage movement code
+                    if (isInCage(x,y)) {
+                        // sample new direction
+                        const sampledDirection = await sampleNewDir(pd);
+                        const prob = {'l':.1, 'r':.1, 'u':.7, 'd':.1}[sampledDirection];
+                        if (!(u()<1/(1+G.r/(2*r))) && u() < prob) {
+                            direction = sampledDirection;
+                            g.s = 0;
+                        }
+                    }  
+
+                    // code for chase
+                    else if (G.chase) {
+                        //
+                    }
+
+
+                    // random movement
+                    else {
+                        
+                        if (pd.includes(g.d)) {
+                            if (pd.length > 2 && u() < (1-G.r/(1+g.s/(2*r)))) {
+                                pd.splice(pd.indexOf(g.d), 1);
+                                direction = await sampleNewDir(pd);
+                                g.s = 0
+                            } else {
+                                direction = g.d
+                            }
+                        } else {
+                            min = 1e6;
+                            pd.push(backDir);
+                            for (d of pd) {
+                                const [xn, yn] = incrementCoord(x,y,d,I);
+                                dist = distToPacMan(xn, yn)
+                                if (dist < min) {
+                                    min = dist;
+                                    direction = d
+                                }
+                            }
+                            
+                        }
+                    }
+
+                }
+
+                // update direction if determined
+                if (direction) { g.d = direction }
+
+                // apply increment in chosen direction
+                [g.p.x, g.p.y] = incrementCoord(g.p.x, g.p.y, g.d, I);
+                g.s++
+
+            }
             async function moveGhostContinously (_ghost, grid) {
                 while (1) {
-                    await moveGhost (_ghost, grid);
+                    await moveGhost2 (_ghost, grid);
                     await sl(increments/ghost.v)
                 }
             }
@@ -603,8 +684,6 @@
                 initGhost(ghost.spawn.x+(u()-.5)*r, ghost.spawn.y+(u()-.5)*r, c)
             }
 
-            
-            beep()
             // instantiate grid
             const _grid = await grid(columns, rows, r);
 
