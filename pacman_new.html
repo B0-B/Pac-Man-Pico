@@ -19,7 +19,8 @@
                     maxFrameRate = 60,
                     coinRotationRate = 1,
                     increments = 2,
-                    pacVelocity = .5; // px/ms
+                    pacVelocity = .5, // px/ms
+                    bigCoinRate = 0.01;
             var     ghostVelocity = .3;
 
             // general
@@ -117,7 +118,11 @@
                 for (i = 0; i < _grid.length; i++) {
                     for (j = 0; j < _grid[0].length; j++) {
                         if (!_grid[i][j].rigid && !isInCage(j*r,i*r)) {
-                            _grid[i][j].c = 1;
+                            if (u() < bigCoinRate) {
+                                _grid[i][j].c = 2;
+                            } else {
+                                _grid[i][j].c = 1;
+                            }
                             game.coins++
                         }
                     }
@@ -127,6 +132,7 @@
             async function eatCoin (x,y,_grid) {
                 c = getCell(x+r/2,y+r/2,_grid);
                 if (c.c) {
+                    if (c.c > 1) {vulnerableTimeout(3+u()*7)}
                     c.c = 0;
                     game.coins--;
                     pac.points+=10;
@@ -137,8 +143,7 @@
                 }
             }
             async function renderCoins (_grid, ctx) {
-                const rad = r/3/4;
-                const dia = rad*2;
+                var rad;
                 const omega = 2*Math.PI*coinRotationRate;
                 const dt = 1/maxFrameRate;
                 const gcl = game.coinColor.length;
@@ -152,6 +157,13 @@
                         for (j = 0; j < _grid[0].length; j++) {
                             const c = _grid[i][j];
                             if (c.c) {
+
+                                if (c.c == 1) {
+                                    rad = r/3/4;
+                                } else {
+                                    rad = r/3/2;
+                                }
+                                
                                 sine = .5*(Math.sin(game.coinPhase)+1);
                                 
                                 ctx.beginPath();
@@ -178,20 +190,25 @@
                 // switch on the game and give pacman 5 seconds advantage
                 await sl(1e3);
                 game.isOn = 1;
-                await sl(5e3);
 
                 // wait until ghosts left the cage, and close it
+                await sl(5e3);
                 await releaseGhosts(_grid);
 
                 // iteratively switch between chase and random, raise the velocity
                 const catchLimit = (.75*r)**2
                 while (game.up > 0) {
-                    await sl(50);
-                    if (ghost.vul) {
+                    await sl(30);
 
+                    // design sound
+                    if (ghost.vul) {
+                        continue
                     } else {
+                        sound.siren.mozPreservesPitch = false;
+                        sound.siren.playbackRate = 1 + 0.2*(3-game.up);
                         sound.siren.play()
                     }
+
                     for (g of ghost.list) {
                         
                         // check if pacman was caught
@@ -210,7 +227,8 @@
                             if (game.up == 0) {
                                 pac.show = 0;
                                 game.isOn = 1;
-                                pac.p = {x:0,y:0}
+                                pac.p = {x:0,y:0};
+                                ghostVelocity = .1;
                                 break
                             }
 
@@ -720,7 +738,15 @@
                     await moveGhost (_ghost, grid);
                 }
             }
-            
+            async function vulnerableTimeout (t) {
+                ghost.vul = 1;
+                const v = ghostVelocity;
+                ghostVelocity = 0.1;
+                await sl(t*1e3);
+                ghost.vul = 0;
+                ghostVelocity = v;
+
+            }
             // render code
             async function renderDynamicLayer (dynCtx) {
                 dynCtx.clearRect(0, 0, width, height);
