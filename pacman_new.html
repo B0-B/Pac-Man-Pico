@@ -98,7 +98,8 @@
                 chase: 0,
                 door: null,
                 list: [],
-                r: .01
+                r: .01,
+                vul: 0
             };
 
             /* Game data */
@@ -168,7 +169,7 @@
             }
 
 
-            // game options and menu
+            // game options
             async function newGame (_grid) {
 
                 // fill grid with coins 
@@ -186,7 +187,11 @@
                 const catchLimit = (.75*r)**2
                 while (game.up > 0) {
                     await sl(50);
-                    
+                    if (ghost.vul) {
+
+                    } else {
+                        sound.siren.play()
+                    }
                     for (g of ghost.list) {
                         
                         // check if pacman was caught
@@ -233,8 +238,6 @@
 
             }
              
-
-
             // grid code
             function getCell (x, y, grid) {
                 return grid[fl(y/r)][fl(x/r)]
@@ -590,7 +593,14 @@
                 const c = [_ghost.p.x+rad, _ghost.p.y+rad];
                 ctx.beginPath();
                 ctx.arc(c[0], c[1], rad, -Math.PI, 0);
-                ctx.fillStyle = ctx.strokeStyle = _ghost.c;
+
+                // draw all blue if ghosts are vulnerable
+                if (ghost.vul) {
+                    ctx.fillStyle = ctx.strokeStyle = '#0c1794';
+                } else {
+                    ctx.fillStyle = ctx.strokeStyle = _ghost.c;
+                }
+                
                 ctx.fillRect(_ghost.p.x, _ghost.p.y+rad, resolution, fl(rad/2));
                 for ([dx,dy] of [[2,2],[1.75,1.75],[1.5,2],[1.25,1.75],[1,2],[.75,1.75],[.5,2],[.25,1.75],[0,2],[0,1.75]]) {
                     ctx.lineTo(_ghost.p.x+dx*rad, _ghost.p.y+dy*rad);
@@ -672,11 +682,20 @@
                             g.s = 0
                         }
                     } else {
-                        min = 1e6;
+                        // try to decrease distance when in chase mode
+                        // otherwise try to increase it when vulnerable
+                        let cond, min;
+                        if (G.vul) {min = 0}
+                        else {min = 1e6}
                         for (d of pd) {
                             [xn, yn] = incrementCoord(x,y,d,I);
                             dist = distTo(xn, yn, t[0], t[1]);
-                            if (dist < min) {
+                            if (G.vul) {
+                                cond = dist > min
+                            } else {
+                                cond = dist < min
+                            }
+                            if (cond) {
                                 min = dist;
                                 direction = d
                             }
