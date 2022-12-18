@@ -185,12 +185,6 @@
                 // iteratively switch between chase and random, raise the velocity
                 const catchLimit = (.75*r)**2
                 while (game.up > 0) {
-                    // for (let i = 0; i < fl(game.period*1e3/50); i++) {
-                    //     await sl(50);
-                    //     if (!game.up){break}
-                    // }
-                    // ghost.chase = !ghost.chase;
-                    // ghostVelocity = 1.1*ghostVelocity;
                     await sl(50);
                     
                     for (g of ghost.list) {
@@ -207,6 +201,14 @@
                             pac.p = {x:r,y:r};
                             pac.d = 'r';
                             game.up--;
+
+                            if (game.up == 0) {
+                                pac.show = 0;
+                                game.isOn = 1;
+                                pac.p = {x:0,y:0}
+                                break
+                            }
+
                             for (g of ghost.list) {
                                 g.p = {x:ghost.spawn.x+(u()-.5)*r, y:ghost.spawn.y+(u()-.5)*r}
                             }
@@ -227,7 +229,7 @@
                 }
 
                 // when the loop ends end the game
-                game.isOn = 0;
+                //game.isOn = 0;
 
             }
              
