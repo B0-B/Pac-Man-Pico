@@ -37,7 +37,8 @@
             //  canvas
             // create layers
             // Layer 1: Background Layer
-            // Layer 2: Dynamic Layer
+            // Layer 2: Interaction Layer
+            // Layer 3: Dynamic Layer
             const   r = resolution;
             const   columns = fl(width/r);
             const   rows = fl(height/r);
@@ -143,7 +144,7 @@
                 while (1) {
                     await sl(1e3*dt)
                     ctx.clearRect(0, 0, width, height);
-                    // ctx.restore();
+                    ctx.restore();
                     // ctx.save();
                     if(!game.isOn){continue}
                     for (i = 0; i < _grid.length; i++) {
@@ -161,9 +162,7 @@
                             }
                         }
                     }
-                    
                     game.coinPhase = (game.coinPhase + omega * dt) % (2*Math.PI)
-                    console.log(sine)
                 } 
                 
             }
@@ -181,27 +180,50 @@
                 await sl(5e3);
 
                 // wait until ghosts left the cage, and close it
-                openDoor(_grid);
-                allLeft=0;
-                while (!allLeft) {
-                    allLeft=1;
-                    for (g of ghost.list) {
-                        if (isInCage(g.p.x,g.p.y)) {
-                            allLeft=0
-                        }
-                    }
-                    await sl(10);
-                }
-                openDoor(_grid, 1);
+                await releaseGhosts(_grid);
 
                 // iteratively switch between chase and random, raise the velocity
+                const catchLimit = (.75*r)**2
                 while (game.up > 0) {
-                    for (let i = 0; i < fl(game.period*1e3/50); i++) {
-                        await sl(50);
-                        if (!game.up){break}
+                    // for (let i = 0; i < fl(game.period*1e3/50); i++) {
+                    //     await sl(50);
+                    //     if (!game.up){break}
+                    // }
+                    // ghost.chase = !ghost.chase;
+                    // ghostVelocity = 1.1*ghostVelocity;
+                    await sl(50);
+                    
+                    for (g of ghost.list) {
+                        
+                        // check if pacman was caught
+                        distance = distTo(g.p.x, g.p.y, pac.p.x, pac.p.y);
+                        if (distance < catchLimit) {
+
+                            sound.die.play()
+                            
+                            game.isOn = 0;
+                            await sl(3e3);
+                            
+                            pac.p = {x:r,y:r};
+                            pac.d = 'r';
+                            game.up--;
+                            for (g of ghost.list) {
+                                g.p = {x:ghost.spawn.x+(u()-.5)*r, y:ghost.spawn.y+(u()-.5)*r}
+                            }
+
+                            for (let i = 0; i < 12; i++) {
+                                await renderDynamicLayer(layers[3].ctx);
+                                pac.show = !pac.show;
+                                await sl(100)
+                            }
+                            
+                            
+                            game.isOn = 1;
+                            await releaseGhosts(_grid);
+
+                            break
+                        }
                     }
-                    ghost.chase = !ghost.chase;
-                    ghostVelocity = 1.1*ghostVelocity;
                 }
 
                 // when the loop ends end the game
@@ -466,6 +488,20 @@
             function openDoor (grid,v=0) {
                 grid[ghost.door.row][ghost.door.col].rigid = v
             }
+            async function releaseGhosts (_grid) {
+                openDoor(_grid);
+                allLeft=0;
+                while (!allLeft) {
+                    allLeft=1;
+                    for (g of ghost.list) {
+                        if (isInCage(g.p.x,g.p.y)) {
+                            allLeft=0
+                        }
+                    }
+                    await sl(10);
+                }
+                openDoor(_grid, 1);
+            }
 
             // pac-man code
             async function drawPacMan (ctx) {
@@ -544,7 +580,7 @@
                     r: 1          // randomness
                 })
             }
-            function distToPacMan (x, y, x_t, y_t) {
+            function distTo (x, y, x_t, y_t) {
                 return ((x_t-x)**2+(y_t-y)**2)
             }
             async function drawGhost (_ghost, ctx) {
@@ -637,7 +673,7 @@
                         min = 1e6;
                         for (d of pd) {
                             [xn, yn] = incrementCoord(x,y,d,I);
-                            dist = distToPacMan(xn, yn, t[0], t[1]);
+                            dist = distTo(xn, yn, t[0], t[1]);
                             if (dist < min) {
                                 min = dist;
                                 direction = d
@@ -665,6 +701,15 @@
             }
             
             // render code
+            async function renderDynamicLayer (dynCtx) {
+                dynCtx.clearRect(0, 0, width, height);
+                if (pac.show) {
+                    await drawPacMan(dynCtx);
+                }
+                for (g of ghost.list) {
+                    await drawGhost(g, dynCtx)
+                }
+            }
             async function renderEngine (dynCtx, interCtx) {
                 
                 // initialize asynchronous coin rendering 
@@ -674,13 +719,7 @@
                 // start rendering content on dynamic layer
                 while (1) {
                     try {
-                        dynCtx.clearRect(0, 0, width, height);
-                        if (pac.show) {
-                            await drawPacMan(dynCtx);
-                        }
-                        for (g of ghost.list) {
-                            await drawGhost(g, dynCtx)
-                        }
+                        await renderDynamicLayer(dynCtx, interCtx)
                     } catch (error) {
                         console.error(error)
                     } finally {
