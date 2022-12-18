@@ -123,7 +123,7 @@
                 
             }
             async function eatCoin (x,y,_grid) {
-                c = getCell(x,y,_grid);
+                c = getCell(x+r/2,y+r/2,_grid);
                 if (c.c) {
                     c.c = 0;
                     game.coins--;
@@ -142,24 +142,27 @@
                 const gcl = game.coinColor.length;
                 while (1) {
                     await sl(1e3*dt)
+                    ctx.clearRect(0, 0, width, height);
+                    // ctx.restore();
+                    // ctx.save();
                     if(!game.isOn){continue}
                     for (i = 0; i < _grid.length; i++) {
                         for (j = 0; j < _grid[0].length; j++) {
                             const c = _grid[i][j];
                             if (c.c) {
                                 sine = .5*(Math.sin(game.coinPhase)+1);
-                                ctx.save();
+                                
                                 ctx.beginPath();
-                                ctx.ellipse(c.x+fl(r/2), c.y+fl(r/2), rad*sine, rad, 0, 0, 2 * Math.PI);
+                                ctx.ellipse(c.x+fl(r/2), c.y+fl(r/2), rad, rad, 0, 0, 2 * Math.PI);
                                 ctx.fillStyle = game.coinColor[fl(sine*gcl)];
                                 ctx.closePath();
                                 ctx.fill();
-                                ctx.restore();
+                                
                             }
                         }
                     }
-                    game.coinPhase += omega * dt;
-                    game.coinPhase = game.coinPhase % (2*Math.PI)
+                    
+                    game.coinPhase = (game.coinPhase + omega * dt) % (2*Math.PI)
                     console.log(sine)
                 } 
                 
