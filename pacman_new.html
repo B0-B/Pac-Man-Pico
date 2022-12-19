@@ -204,7 +204,8 @@
 
             /* Game data */
             var game = {
-                up: 3,
+                lives: 3,
+                up: 0,
                 isOn: false,
                 period: 15,
                 coins: 0,
@@ -218,6 +219,12 @@
                     for (j = 0; j < _grid[0].length; j++) {
                         if (_grid[i][j].c != 2 && !_grid[i][j].rigid && !isInCage(j*r,i*r)) {
                             if (u() < bigCoinRate) {
+                                if (_grid[i][j].c != 1) {
+                                    // if the space where a random big coin is layed down
+                                    // is NOT used by a normal coin raise the coins number
+                                    game.coins++;
+
+                                }
                                 _grid[i][j].c = 2;
                             } else if (!bigOnly) {
                                 _grid[i][j].c = 1;
@@ -234,7 +241,12 @@
                     if (c.c > 1) {vulnerableTimeout(3+u()*7)}
                     c.c = 0;
                     game.coins--;
-                    pac.points+=10;
+                    if (c.coin == 1) {
+                        pac.points+=10;
+                    } else {
+                        pac.points+=20;
+                    }
+                    
                     for (i of [1,1]){
                         await sound.eat.play();
                     }
@@ -280,7 +292,7 @@
             }
 
             // game options
-            function setText (text, ctx, x, y, fillColor, strokeColor, fontSize=fl(r/2), center=true) {
+            function setText (text, ctx, x, y, fillColor, strokeColor, fontSize=fl(r/3), center=true) {
                 
                 // center text
                 if (center) {x -= fl(ctx.measureText(text).width/2)}
@@ -325,7 +337,7 @@
 
                 // iteratively switch between chase and random, raise the velocity
                 const catchLimit = (.75*r)**2
-                while (game.up > 0) {
+                while (game.lives > 0) {
                     
                     await sl(30);
                     
@@ -354,10 +366,10 @@
                             
                             pac.p = {x:r,y:r};
                             pac.d = 'r';
-                            game.up--;
+                            game.lives--;
                             
 
-                            if (game.up == 0) {
+                            if (game.lives == 0) {
                                 pac.show = 0;
                                 game.isOn = 1;
                                 pac.p = {x:0,y:0};
@@ -663,14 +675,26 @@
             }
 
             // pac-man code
-            async function drawPacMan (ctx) {
+            async function drawPacMan (ctx, x=pac.p.x,y=pac.p.y, fixedDir=null) {
                 const rad = fl(r/2);
-                const c = [pac.p.x+rad, pac.p.y+rad];
-                const mouth_state = pac.mouth[fl(2*pac.steps*pac.mouth.length/r) % pac.mouth.length];
+                const c = [x+rad, y+rad];
+                if (fixedDir) {
+                    mouthIndex = 0;
+                } else {
+                    mouthIndex = fl(2*pac.steps*pac.mouth.length/r);
+                }
+
+                const mouth_state = pac.mouth[mouthIndex % pac.mouth.length];
+                
                 ctx.save()
                 ctx.beginPath();
                 ctx.translate(c[0], c[1])
-                ctx.rotate(pac.phase[pac.d])
+                if (fixedDir) {
+                    ctx.rotate(pac.phase[fixedDir])
+                } else {
+                    ctx.rotate(pac.phase[pac.d])
+                }
+                
                 ctx.moveTo(0, 0)
                 ctx.arc(0, 0, rad, mouth_state, 2*Math.PI-mouth_state);
                 ctx.fillStyle = ctx.strokeStyle = '#d9e312';
@@ -883,7 +907,7 @@
 
             }
             async function soundLoop () {
-                while (game.up>0) {
+                while (game.lives>0) {
                     
                     // design sound
                     await sl(5);
@@ -891,7 +915,7 @@
                         continue
                     } else {
                         sound.siren.mozPreservesPitch = false;
-                        sound.siren.playbackRate = 1 + 0.2*(3-game.up);
+                        sound.siren.playbackRate = 1 + 0.2*(3-game.lives);
                         
                         if (ghost.vul) {
                             await sound.vul.play();
@@ -904,11 +928,20 @@
             
             // render code
             async function renderDisplay (interCtx) {
-                bound = [[0, rows*r], [columns*r, (rows+2)*r]];
+                b = [[0, rows*r], [columns*r, (rows+2)*r]];
                 while (1) {
-                    await sl(5);
-                    interCtx.clearRect(bound[0][0], bound[0][1], bound[1][0], 2*r);
-                    setText(`SCORE ${pac.points}`, interCtx, fl(width/2), bound[0][1]+fl(r), '#fff', '#fff', fl(r/2))
+
+                    await sl(1e3/maxFrameRate);
+
+                    // display score in the lower center
+                    interCtx.clearRect(b[0][0], b[0][1], b[1][0], 2*r);
+                    setText(`SCORE ${pac.points}`, interCtx, fl(width/2), b[0][1]+fl(r), '#fff', '#fff', fl(r/2));
+
+                    // display lives left
+                    for (let i=0; i<game.lives; i++) {
+                        const x_coord = (i*1.2+1)*r;
+                        drawPacMan(interCtx, x_coord, b[0][1]+fl(.5*r), 'l')
+                    } 
                 }
             }
             async function renderDynamicLayer (dynCtx) {
