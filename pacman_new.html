@@ -20,7 +20,7 @@
                     coinRotationRate = 1,
                     increments = 2,
                     pacVelocity = .5, // px/ms
-                    bigCoinRate = 0.01;
+                    bigCoinRate = 0.03;
             var     ghostVelocity = .3;
 
             // general
@@ -147,6 +147,7 @@
             const   r = resolution;
             const   columns = fl(width/r);
             const   rows = fl(height/r);
+            const   displayPadding = 2*r;
             var layers = {};
             for (i of [1,2,3,4]) {
                 const el = document.createElement('canvas');
@@ -156,22 +157,22 @@
                 }
                 await sl(.1)
                 obj.ctx.canvas.width = width;
-                obj.ctx.canvas.height = height;
+                obj.ctx.canvas.height = height+displayPadding;
                 if (i == 1) {
                     obj.ctx.fillStyle = retroBg;
-                    obj.ctx.fillRect(0, 0, width, height);
+                    obj.ctx.fillRect(0, 0, width, height+displayPadding);
                 } else {
                     el.style.position = 'absolute';
                     el.style.top = '0';
                     el.style.left = '0';
                 }
                 el.style.width = columns * r;
-                el.style.height = rows * r;
+                // leave padding below for display
+                el.style.height = (rows+displayPadding/r) * r;
                 el.style.zIndex = `${i}`;
                 body.prepend(el);
                 layers[i] = obj;
             }
-            
             
             /* PacMan data */
             var pac = {
@@ -279,16 +280,16 @@
             }
 
             // game options
-            function setText (text, ctx, x, y, fillColor, strokeColor, fontSize=fl(r/2)) {
+            function setText (text, ctx, x, y, fillColor, strokeColor, fontSize=fl(r/2), center=true) {
                 
                 // center text
-                x -= fl(ctx.measureText(text).width/2)
-
+                if (center) {x -= fl(ctx.measureText(text).width/2)}
+                
                 //x -= Math.max(0, (text.length) * fontSize / 2-40);
                 ctx.fillStyle = fillColor;
                 ctx.strokeStyle = strokeColor;
-                
-                ctx.font = `${fontSize}px Arial Black (sans-serif)`;
+                fontData = `${fontSize}px Arial Black`;
+                ctx.font = fontData;
                 ctx.fillText(text, x, y); 
                 ctx.strokeText(text, x, y);
 
@@ -400,7 +401,7 @@
                 ctx.fillStyle = color;
                 ctx.fillRect(c.x, c.y, r, r);
             }
-            async function grid (columns, rows, resolution) {
+            async function grid (columns, rows, resolution, yOff=0) {
                 let     mat = [];
                 const   c = resolution;
                 for (let i=0; i<rows; i++) {
@@ -408,7 +409,7 @@
                     for (let j=0; j<columns; j++) {
                         row.push({
                             x:j*c,
-                            y:i*c,
+                            y:(i+yOff)*c,
                             rigid:0,
                             c:0,
                         })
@@ -489,7 +490,7 @@
                 }
                 return !isRigid(p1[0],p1[1],grid) && !isRigid(p2[0],p2[1],grid)
             }
-            async function maze (grid, ctx, color, snakes=100, length=100, gaprate=0) {
+            async function maze (grid, ctx, color, snakes=100, length=100, gaprate=0, yOff=0) {
                 
                 const   g = grid;
                 const   res = g[0][1].x - g[0][0].x,
@@ -527,7 +528,7 @@
                     await setWallBlock(ctx, start[0]+x, start[1]+dim[1], res, g, color);
                     
                 } 
-                for (let y = 0; y < dim[1]; y++) {
+                for (let y = yOff; y < dim[1]; y++) {
                     await setWallBlock(ctx, start[0], start[1]+y, res, g, color);
                     await setWallBlock(ctx, start[0]+dim[0], start[1]+y, res, g, color);
                 }
@@ -902,6 +903,14 @@
             }
             
             // render code
+            async function renderDisplay (interCtx) {
+                bound = [[0, rows*r], [columns*r, (rows+2)*r]];
+                while (1) {
+                    await sl(5);
+                    interCtx.clearRect(bound[0][0], bound[0][1], bound[1][0], 2*r);
+                    setText(`SCORE ${pac.points}`, interCtx, fl(width/2), bound[0][1]+fl(r), '#fff', '#fff', fl(r/2))
+                }
+            }
             async function renderDynamicLayer (dynCtx) {
                 dynCtx.clearRect(0, 0, width, height);
                 if (pac.show) {
@@ -916,6 +925,7 @@
                 // initialize asynchronous coin rendering 
                 // on interactive layer
                 renderCoins(_grid, interCtx);
+                renderDisplay(interCtx);
 
                 // start rendering content on dynamic layer
                 while (1) {

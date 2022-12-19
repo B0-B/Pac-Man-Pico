@@ -124,7 +124,7 @@
                         dim[ind] = 3
                     }
                 }
-                start = [(col-dim[0])/2, (row-dim[1])/2];
+                start = [(col-dim[0])/2, (row-dim[1])/2+yOff];
                 await block(start[0], start[1], res, g, ctx, color)
                 for (let x = 0; x < dim[0]+1; x++) {
                     await block(start[0]+x, start[1], res, g, ctx, color);
