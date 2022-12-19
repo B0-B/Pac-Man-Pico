@@ -212,13 +212,13 @@
             }
 
             // coin code
-            function loadCoins (_grid) {
+            function loadCoins (_grid, bigOnly=false) {
                 for (i = 0; i < _grid.length; i++) {
                     for (j = 0; j < _grid[0].length; j++) {
-                        if (!_grid[i][j].rigid && !isInCage(j*r,i*r)) {
+                        if (_grid[i][j].c != 2 && !_grid[i][j].rigid && !isInCage(j*r,i*r)) {
                             if (u() < bigCoinRate) {
                                 _grid[i][j].c = 2;
-                            } else {
+                            } else if (!bigOnly) {
                                 _grid[i][j].c = 1;
                             }
                             game.coins++
@@ -354,6 +354,7 @@
                             pac.p = {x:r,y:r};
                             pac.d = 'r';
                             game.up--;
+                            
 
                             if (game.up == 0) {
                                 pac.show = 0;
@@ -362,6 +363,9 @@
                                 ghostVelocity = .1;
                                 break
                             }
+
+                            // generate a few new bigcoins coins 
+                            //loadCoins(_grid, 1);
 
                             for (g of ghost.list) {
                                 g.p = {x:ghost.spawn.x+(u()-.5)*r, y:ghost.spawn.y+(u()-.5)*r}
@@ -674,11 +678,10 @@
                 ctx.closePath();
                 ctx.fill();
                 ctx.restore();
-
             }
             async function movePacMan (_grid) {
                 [pac.p.x, pac.p.y]=incrementCoord(pac.p.x, pac.p.y, pac.d, increments);
-                pac.steps++
+                pac.steps++;
                 eatCoin(pac.p.x, pac.p.y, _grid)
             }
             async function movePacManContinuously (grid) {
