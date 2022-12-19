@@ -8,7 +8,7 @@
         (async() => {
 
             // graphics
-            const   height = 680,
+            const   height = 640,
                     width = 960,
                     mazeWallGapRate = 0.3,
                     mazeWallLength = 100,
@@ -282,15 +282,19 @@
             }
 
             // game options
-            function setText (text, ctx, x, y, fillColor, strokeColor) {
-                const textBoxWidth = width - 2 * r;
-                const fnts = fl(r/2);
-                x -= Math.max(0, (text.length-5) * fnts / 2);
+            function setText (text, ctx, x, y, fillColor, strokeColor, fontSize=fl(r/2)) {
+                
+                // center text
+                x -= fl(ctx.measureText(text).width/2)
+
+                //x -= Math.max(0, (text.length) * fontSize / 2-40);
                 ctx.fillStyle = fillColor;
                 ctx.strokeStyle = strokeColor;
-                ctx.font = `${fnts}px Pixel`;
-                ctx.fillText(text, x, y, textBoxWidth); 
-                ctx.strokeText(text, x, y, textBoxWidth);
+                
+                ctx.font = `${fontSize}px Arial Black (sans-serif)`;
+                ctx.fillText(text, x, y); 
+                ctx.strokeText(text, x, y);
+
             }
             async function newGame (_grid) {
 
@@ -302,10 +306,10 @@
 
                 // define text location
                 const gc = ghost.cage;
-                const [xt, yt] = [(gc[0][1]+gc[0][0])*r/2, (gc[1][1]+.7)*r];
+                const [xt, yt] = [fl(width/2+r/2), (gc[1][1]+.6)*r];
                 for (let i = 0; i < 12; i++) {
                     const c = ['#fff','#000'][i%2];
-                    setText ('Ready!', textCtx, xt, yt, c, c)
+                    setText ('READY!', textCtx, xt, yt, c, c)
                     await sl(100);
                     cl(textCtx);
                 }
