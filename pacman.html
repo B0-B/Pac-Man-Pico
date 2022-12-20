@@ -23,7 +23,7 @@
             const   height = 640,
                     width = 960,
                     mazeWallGapRate = 0.3,
-                    mazeWallLength = 100,
+                    mazeWallLength = 5,
                     mazeWallNumber = 100,
                     resolution = 40,
                     wallColor = '#1b0f9d',
@@ -500,55 +500,53 @@
                 }
                 return !isRigid(p1[0],p1[1],grid) && !isRigid(p2[0],p2[1],grid)
             }
-            async function maze (grid, ctx, color, snakes=100, length=100, gaprate=0, yOff=0) {
+            async function maze (grid, ctx, color, snakes=100, length=100, gaprate=0) {
                 
                 const   g = grid;
-                const   res = g[0][1].x - g[0][0].x,
-                        col = g[0].length,
+                const   col = g[0].length,
                         row = g.length;
 
                 ctx.fillStyle = color;
+
+                // define worm hole pos
+                wh = 0
                 
-                // create outter frame
-                for (let i=0; i<rows; i++) {
-                    await setWallBlock(ctx, 0, i, res, g, color);
-                    await setWallBlock(ctx, col-1, i, res, g, color)
-                }
-                for (let i=0; i<col; i++) {
-                    await setWallBlock(ctx, i, 0, res, g, color);
-                    await setWallBlock(ctx, i, row-1, res, g, color)
+                //create outter frame
+                for (i=0; i<rows; i++) {
+                    for (j=0; j<col; j++) {
+                        if (!j||j==col-1||!i||i==rows-1) {
+                            await setWallBlock(ctx, j, i, r, g, color);
+                        }
+                    }
                 }
 
                 // place the cage
                 dim = [];
                 for (ind of [0,1]) {
-                    d = [col, row][ind]
-                    if (d % 2 == 0){
+                    d = [col, row][ind];
+                    dim[ind] = 3;
+                    if (d%2<1){
                         dim[ind] = 4
-                    } else {
-                        dim[ind] = 3
                     }
                 }
                 if (col>row && dim[1]>4){dim[1]--}
-                
                 start = [fl((col-dim[0])/2), fl((row-dim[1])/2)];
-                await setWallBlock(ctx, start[0], start[1], res, g, color)
-                for (let x = 0; x < dim[0]+1; x++) {
-                    await setWallBlock(ctx, start[0]+x, start[1], res, g, color);
-                    await setWallBlock(ctx, start[0]+x, start[1]+dim[1], res, g, color);
-                    
-                } 
-                for (let y = yOff; y < dim[1]; y++) {
-                    await setWallBlock(ctx, start[0], start[1]+y, res, g, color);
-                    await setWallBlock(ctx, start[0]+dim[0], start[1]+y, res, g, color);
+                for (x = 0; x < dim[0]+1; x++) {
+                    for (y = 0; y < dim[1]+1; y++) {
+                        if (!x||!y||x==dim[0]||y==dim[1]) {
+                            await setWallBlock(ctx, start[0]+x, start[1]+y, r, g, color);
+                        }
+                    }
                 }
+
+                // denote ghost cage position
                 ghost.cage = [[start[0],start[0]+dim[0]],[start[1],start[1]+dim[1]]];
 
                 // install cage door
                 ghost.door = {col: fl(start[0]+dim[0]/2), row: fl(start[1])} 
-                await setWallBlock(ctx, ghost.door.col, ghost.door.row, res, g, retroBg);
+                await setWallBlock(ctx, ghost.door.col, ghost.door.row, r, g, retroBg);
                 ctx.fillStyle = '#fff';
-                ctx.fillRect(ghost.door.col*res, ghost.door.row*res+.4*res, res, .2*res);
+                ctx.fillRect(ghost.door.col*r, ghost.door.row*r+.4*r, r, .2*r);
 
                 // fill internal space with snake method
                 let p = {r:2,c:2},
@@ -559,11 +557,11 @@
                     const lim = row*col*100;
                     for (let z = 0; z < lim; z++) {
                         // sample new point
-                        const [c,r] = [fl(u()*(col-4))+2, fl(u()*(row-4))+2];
-                        const [x,y] = [c*res, r*res];
+                        const [c,_r] = [fl(u()*(col-4))+2, fl(u()*(row-4))+2];
+                        const [x,y] = [c*r, _r*r];
                         if (!isInCage(x,y) && await isSpaceForWallBlock(x,y,g)) {
                             p.c = c;
-                            p.r = r;
+                            p.r = _r;
                             break
                         }
                         if (z == lim-1) {
@@ -574,7 +572,7 @@
                     if (br) {break}
                     
                     // fill starting point
-                    await setWallBlock(ctx, p.c, p.r, res, g, color)
+                    await setWallBlock(ctx, p.c, p.r, r, g, color)
                     
                     v = '', v_old = '', p_old = [];
                     count = 0;
@@ -590,7 +588,7 @@
                         
                         // throw a die with geom. decreasing probability to keep the same direction
                         if (!(d.includes(v) && u() < 1/(1+count))) {
-                            v = d[fl(u()*d.length)]
+                            v = d[fl(u()*d.length)];
                             count = 0
                         }
 
@@ -598,7 +596,7 @@
                         if (!d.length) {break}
 
                         // adjust position
-                        [x_override, y_override] = incrementCoord(p.c*r, p.r*r, v, 1)
+                        [x_override, y_override] = incrementCoord(p.c*r, p.r*r, v, 1);
                         p.c = fl(x_override/r);
                         p.r = fl(y_override/r);
 
@@ -607,12 +605,12 @@
 
                         // set wall at former coord if direction hasn't chagned to leave sometimes a gap
                         if (v == v_old && u() < gaprate) {
-                            await setWallBlock(ctx, p_old[0], p_old[1], res, g, retroBg, 0)
+                            await setWallBlock(ctx, p_old[0], p_old[1], r, g, retroBg, 0)
                         }
-                        await setWallBlock(ctx, p.c, p.r, res, g, color);
+                        await setWallBlock(ctx, p.c, p.r, r, g, color);
 
                         v_old = v;
-                        p_old = [p.c, p.r];
+                        p_old = [p.c, p.r]
                     
                     }
                 }
@@ -643,7 +641,7 @@
                                     }
                                 }
                                 if (count == 1) {
-                                    await setWallBlock(ctx, j, i, res, g, color);
+                                    await setWallBlock(ctx, j, i, r, g, color);
                                     
                                 }
                                 count = 0;
