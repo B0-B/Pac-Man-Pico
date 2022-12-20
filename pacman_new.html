@@ -406,7 +406,7 @@
                     }
 
                     // check if coins are gone
-                    if (!(await countCoins(_grid))) {
+                    if (game.lives && !(await countCoins(_grid))) {
                         const bgCtx = layers[1].ctx;
                         game.isOn = 0;
                         cl(dynamicCtx);
@@ -434,8 +434,7 @@
 
                         await sl(2e3);
                         await releaseGhosts(_grid);
-                        
-                        break
+
                     }
                 }
 
