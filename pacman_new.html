@@ -431,6 +431,10 @@
 
                         await blinkText ('READY!', xt, yt, textCtx, 1);
                         game.isOn = 1;
+
+                        await sl(2e3);
+                        await releaseGhosts(_grid);
+                        
                         break
                     }
                 }
