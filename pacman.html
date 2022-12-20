@@ -301,7 +301,6 @@
                 return counter
             }
 
-
             // game code
             function setText (text, ctx, x, y, fillColor, strokeColor, fontSize=fl(r/3), center=true) {
                 
@@ -742,7 +741,7 @@
                 }
                 ctx.moveTo(0, 0)
                 ctx.arc(0, 0, rad, mouth_state, 2*Math.PI-mouth_state);
-                ctx.fillStyle = ctx.strokeStyle = '#d9e312';
+                ctx.fillStyle = ctx.strokeStyle = '#ffff00';
                 ctx.lineTo(0, 0);
                 ctx.lineTo(rad*Math.cos(mouth_state),rad*Math.sin(mouth_state));
                 ctx.closePath();
@@ -1000,7 +999,6 @@
             }
 
             // render code
-            
             async function renderDisplay (ctx) {
                 b = [[0, rows*r], [columns*r, (rows+2)*r]];
                 while (1) {
