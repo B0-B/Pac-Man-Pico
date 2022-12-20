@@ -5,8 +5,20 @@
 <body style="background:#454545">
 
     <script>
+        /*░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+        ░░                                                                                                                  ░░
+        ░░                                 _______  _______  _______  __   __  _______  __    _                             ░░
+        ░░                                |       ||   _   ||       ||  |_|  ||   _   ||  |  | |                            ░░
+        ░░                                |    _  ||  |_|  ||       ||       ||  |_|  ||   |_| |                            ░░
+        ░░                                |   |_| ||       ||       ||       ||       ||       |                            ░░
+        ░░                                |    ___||       ||      _||       ||       ||  _    |                            ░░
+        ░░                                |   |    |   _   ||     |_ | ||_|| ||   _   || | |   |                            ░░
+        ░░                                |___|    |__| |__||_______||_|   |_||__| |__||_|  |__|                            ░░
+        ░░                                                                                                                  ░░
+        ░░                                                                                                                  ░░
+        ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░*/
         (async() => {
-
+            
             // graphics
             const   height = 640,
                     width = 960,
@@ -223,7 +235,6 @@
                             } else if (!bigOnly) {
                                 _grid[i][j].c = 1;
                             }
-                            game.coins++
                         }
                     }
                 }
@@ -231,16 +242,14 @@
             async function eatCoin (x,y,_grid) {
                 c = getCell(x+r/2,y+r/2,_grid);
                 if (c.c) {
-                    if (c.c > 1) {vulnerableTimeout(3+u()*7)}
+                    if (c.c > 1 && !ghost.vul) {vulnerableTimeout(5+u()*5)}
                     c.c = 0;
-                    game.coins--;
                     if (c.coin == 1) {
                         pac.points+=10;
                     } else {
                         pac.points+=20;
                     }
-                    await sound.eat.play();
-                    
+                    await sound.eat.play()
                 }
             }
             async function renderCoins (_grid, ctx) {
@@ -936,7 +945,7 @@
             async function vulnerableTimeout (t) {
                 ghost.vul = 1;
                 const v = ghostVelocity;
-                ghostVelocity = 0.1;
+                ghostVelocity = .1;
                 await sl(t*1e3);
                 ghost.vul = 0;
                 ghostVelocity = v;
