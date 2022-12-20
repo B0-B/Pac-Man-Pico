@@ -1,7 +1,5 @@
 <h1 align=center><strong> Pac-Man-Pico</strong> </h1> 
 
-
-
 ### [Play a demo](https://codepen.io/b0-b/pen/abjzZJQ) of the current stable version. 
 ---
 ## About
@@ -28,6 +26,7 @@ The timeline is undefined and continuous. Developed with 💛
 
 ## Playground
 
-If for instance one decreases the "resolution" variable which actually is the block size from 40 to 20 pixels, the maze can be densed down to a larger maze in total but in persistent bounds.
-It might be necessary to adjust the velocities as well.
+If the "resolution" variable is decreased (actually the block size) from 40 to 20 pixels, the maze can be condensed to a larger maze in total but in persistent bounds.
+It might be necessary to adjust the velocities, or window geometry as well.
 
+<img src=screenshot.png>
