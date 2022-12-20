@@ -18,9 +18,9 @@ The timeline is undefined and continuous. Developed with 💛
 ## All Features within <strong>50 kB</strong>
 - Supported by any browser
 - Sound support
-- Random Maze Generator using Monte Carlo simulation
+- Infinite levels through random maze generation
 - Adaptive pursuit algorithm for ghosts
-- Infinite Maze size
+- No upper bound for maze size
 - Custom graphics adjustments
 
 
