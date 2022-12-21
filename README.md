@@ -11,11 +11,12 @@ Original game support on modern x86 architecture offers pacman in actronomically
 |-|-|-|
 |Playstation 4 | [Playstation Store](https://store.playstation.com/en-us/product/UP0700-CUSA03955_00-PACMAN0000000000) | 1,000,000,000||
 |PC|[Steam Store](https://store.steampowered.com/app/394160/ARCADE_GAME_SERIES_PACMAN/) | 1,500,000,000|
-|Pac-Man-Pico|github| 50,000|
+|Pac-Man-Pico|github| 47.634|
+|Pac-Man-Yokto|github| 19.723|
 
 The timeline is undefined and continuous. Developed with 💛
 
-## All Features within <strong>50 kB</strong>
+## All Features within <strong>20 kB</strong>
 - Supported by any browser
 - Sound support
 - Infinite levels through random maze generation
